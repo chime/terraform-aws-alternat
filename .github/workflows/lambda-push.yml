@@ -43,7 +43,7 @@ jobs:
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
-        role-to-assume: arn:aws:iam::676895163693:role/github-ha-nat-lambda-update-function
+        role-to-assume: arn:aws:iam::640342642087:role/github-ha-nat-lambda-update-function
         aws-region: us-east-1
     - name: Update Lambda Function Code
       run: |
@@ -60,7 +60,7 @@ jobs:
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
-        role-to-assume: arn:aws:iam::676895163693:role/github-ha-nat-lambda-update-function
+        role-to-assume: arn:aws:iam::640342642087:role/github-ha-nat-lambda-update-function
         aws-region: us-east-1
     - name: Update Lambda Version and Alias
       run: |
