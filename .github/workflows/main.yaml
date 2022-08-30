@@ -1,71 +1,94 @@
 name: Lambda Push to ECR
 
-on:
-  push:
-    branches:
-      - main
+on: push
 
 env:
   ECR_REGISTRY: 358789136651.dkr.ecr.us-east-1.amazonaws.com
   ECR_REPOSITORY: ha-nat-functions-lambda
-  ALIAS_NAME: prod
-  IMAGE_TAG: latest
   FUNCTION_NAME: ha-nat-route-table-lambda
+  PRODUCTION_AWS_ACCOUNT: 802476504392
+  NONPROD_AWS_ACCOUNT: 676895163693
 
 jobs:
+  get_outputs:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set_outputs.outputs.image_tag_val }}
+      alias_name: ${{ steps.set_outputs.outputs.alias_name_val }}
+      account_id: ${{ steps.set_outputs.outputs.account_id_val }}
+    steps:
+      - id: set_outputs
+        run: |
+          if [ "${{github.ref_name}}" == "main" ]; then
+            echo "::set-output name=image_tag_val::latest"
+            echo "::set-output name=alias_name_val::prod"
+            echo "::set-output name=account_id::$PRODUCTION_AWS_ACCOUNT"
+          else
+            # If branch has forward slashes, replace with hyphens
+            branch="${{github.ref_name}}"
+            normalized_branch="${branch//\//-}"
+            echo "::set-output name=image_tag_val::$normalized_branch"
+            echo "::set-output name=alias_name_val::$normalized_branch"
+            echo "::set-output name=account_id::$NONPROD_AWS_ACCOUNT"
+          fi
   push_to_ecr:
     permissions:
       id-token: write
       contents: read
     runs-on: ubuntu-latest
+    needs: get_outputs
     steps:
-    - uses: actions/checkout@v2
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        role-to-assume: arn:aws:iam::358789136651:role/github-ha-nat-lambda-push-ecr
-        aws-region: us-east-1
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
-    - name: Build, tag, and push lambda image to Amazon ECR
-      run: |
-        docker build . -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      - uses: actions/checkout@v3
+      - name: Print outputs
+        run: echo "${{ needs.get_outputs.outputs.image_tag }}"
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::358789136651:role/github-ha-nat-lambda-push-ecr
+          aws-region: us-east-1
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Build, tag, and push lambda image to Amazon ECR
+        run: |
+          docker build . -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ needs.get_outputs.outputs.image_tag }}
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ needs.get_outputs.outputs.image_tag }}
   update_lambda_function:
-    needs: push_to_ecr
+    needs: [get_outputs, push_to_ecr]
     permissions:
       id-token: write
       contents: read
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        role-to-assume: arn:aws:iam::640342642087:role/github-ha-nat-lambda-update-function
-        aws-region: us-east-1
-    - name: Update Lambda Function Code
-      run: |
-        aws lambda update-function-code --function-name $FUNCTION_NAME --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      - uses: actions/checkout@v3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          # TODO: Once ready for nonprod, update role to use ${{ needs.get_outputs.outputs.account_id }}
+          role-to-assume: arn:aws:iam::640342642087:role/github-ha-nat-lambda-update-function
+          aws-region: us-east-1
+      - name: Update Lambda Function Code
+        run: |
+          aws lambda update-function-code --function-name $FUNCTION_NAME --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:${{ needs.get_outputs.outputs.image_tag }}
   publish_lambda_version_alias:
-    needs: update_lambda_function
+    needs: [get_outputs, update_lambda_function]
     permissions:
       id-token: write
       contents: read
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        role-to-assume: arn:aws:iam::640342642087:role/github-ha-nat-lambda-update-function
-        aws-region: us-east-1
-    - name: Update Lambda Version and Alias
-      run: |
-        sleep 20 # Give time for previous job to finish updating lambda state
-        LAMBDA_VERSION=$(aws lambda publish-version --function-name $FUNCTION_NAME | jq '.Version | tonumber')
-        ALIAS_CREATED=$(aws lambda get-alias --function-name $FUNCTION_NAME --name $ALIAS_NAME | jq '.Name')
-        if [ -z "${ALIAS_CREATED}" ]; \
-        then aws lambda create-alias --function-name $FUNCTION_NAME --description "Production Alias for ha-nat-route-table Lambda" --function-version $LAMBDA_VERSION --name $ALIAS_NAME; \
-        else aws lambda update-alias --function-name $FUNCTION_NAME --function-version $LAMBDA_VERSION --name $ALIAS_NAME; fi
+      - uses: actions/checkout@v3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          # TODO: Once ready for nonprod, update role to use ${{ needs.get_outputs.outputs.account_id }}
+          role-to-assume: arn:aws:iam::640342642087:role/github-ha-nat-lambda-update-function
+          aws-region: us-east-1
+      - name: Update Lambda Version and Alias
+        run: |
+          sleep 20 # Give time for previous job to finish updating lambda state
+          LAMBDA_VERSION=$(aws lambda publish-version --function-name $FUNCTION_NAME | jq '.Version | tonumber')
+          ALIAS_CREATED=$(aws lambda get-alias --function-name $FUNCTION_NAME --name ${{ needs.get_outputs.outputs.alias_name }} | jq '.Name')
+          if [ -z "${ALIAS_CREATED}" ]; \
+          then aws lambda create-alias --function-name $FUNCTION_NAME --description "Alias for ha-nat-route-table Lambda" --function-version $LAMBDA_VERSION --name ${{ needs.get_outputs.outputs.alias_name }}; \
+          else aws lambda update-alias --function-name $FUNCTION_NAME --function-version $LAMBDA_VERSION --name ${{ needs.get_outputs.outputs.alias_name }}; fi
