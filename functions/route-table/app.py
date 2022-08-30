@@ -12,7 +12,6 @@ EC2_KEY = "EC2InstanceId"
 def handler(event, context):
     try:
         logger.info(json.dumps(event))
-        records = event["Records"]
         for record in event["Records"]:
             message = json.loads(record["Sns"]["Message"])
             if LIFECYCLE_KEY in message and ASG_KEY in message:
