@@ -1,4 +1,12 @@
-import sys
+import json
+import logging
+import time
 
-def handler(event, context):
-    return 'Hello from AWS Lambda using Python' + sys.version + '!'
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+def lambda_handler(event, context):
+    try:
+        logger.info(json.dumps(event))
+    except Exception as e:
+        logging.error("Error: %s", str(e))
