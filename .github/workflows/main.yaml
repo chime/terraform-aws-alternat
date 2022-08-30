@@ -67,5 +67,5 @@ jobs:
         LAMBDA_VERSION=$(aws lambda publish-version --function-name $FUNCTION_NAME | jq '.Version | tonumber')
         ALIAS_CREATED=$(aws lambda get-alias --function-name $FUNCTION_NAME --name $ALIAS_NAME | jq '.Name')
         if [ -z "${ALIAS_CREATED}" ]; \
-        then aws lambda create-alias --function-name $FUNCTION_NAME --description "Production Alias for Brakeman Lambda" --function-version $LAMBDA_VERSION --name $ALIAS_NAME; \
+        then aws lambda create-alias --function-name $FUNCTION_NAME --description "Production Alias for ha-nat-route-table Lambda" --function-version $LAMBDA_VERSION --name $ALIAS_NAME; \
         else aws lambda update-alias --function-name $FUNCTION_NAME --function-version $LAMBDA_VERSION --name $ALIAS_NAME; fi
