@@ -12,9 +12,8 @@ EC2_KEY = "EC2InstanceId"
 def handler(event, context):
     try:
         logger.info(json.dumps(event))
-        event_object = json.dumps(event)
-        for record in event_object["Records"]:
-            message = record["Sns"]["Message"]
+        for record in event["Records"]:
+            message = json.loads(record["Sns"]["Message"])
             if LIFECYCLE_KEY in message and ASG_KEY in message:
                 life_cycle_hook = message[LIFECYCLE_KEY]
                 auto_scaling_group = message[ASG_KEY]
