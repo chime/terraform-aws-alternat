@@ -16,7 +16,6 @@ jobs:
       id-token: write
       contents: read
     runs-on: ubuntu-latest
-    runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.set_outputs.outputs.image_tag_val }}
       alias_name: ${{ steps.set_outputs.outputs.alias_name_val }}
