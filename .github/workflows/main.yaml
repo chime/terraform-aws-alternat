@@ -25,7 +25,7 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: arn:aws:iam::358789136651:role/github-ha-nat-lambda-push-ecr
+          role-to-assume: arn:aws:iam::640342642087:role/github-ha-nat-lambda-update-function
           aws-region: us-east-1
       - id: set_outputs
         run: |
