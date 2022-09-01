@@ -6,7 +6,7 @@ env:
   ECR_REGISTRY: 358789136651.dkr.ecr.us-east-1.amazonaws.com
   ECR_REPOSITORY: ha-nat-functions-lambda
   AUTOSCALING_LIFECYCLE_FUNCTION_NAME: ha-nat-autoscaling-hook
-  CONNECTIVITY_TEST_FUNCTION_NAME: ha-nat-connectivity-tester-
+  CONNECTIVITY_TEST_FUNCTION_NAME: ha-nat-connectivity-tester
   PRODUCTION_AWS_ACCOUNT: 802476504392
   NONPROD_AWS_ACCOUNT: 676895163693
 
