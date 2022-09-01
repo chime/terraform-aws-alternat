@@ -6,3 +6,4 @@ Resources:
     Properties:
       Handler: app.handler
       Runtime: python3.8
+      Timeout: 30
