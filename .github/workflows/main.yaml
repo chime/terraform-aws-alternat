@@ -12,6 +12,10 @@ env:
 
 jobs:
   get_outputs:
+    permissions:
+      id-token: write
+      contents: read
+    runs-on: ubuntu-latest
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.set_outputs.outputs.image_tag_val }}
@@ -48,8 +52,6 @@ jobs:
     needs: get_outputs
     steps:
       - uses: actions/checkout@v3
-      - name: Print outputs
-        run: echo "${{ needs.get_outputs.outputs.image_tag }}"
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
