@@ -1,0 +1,14 @@
+{
+    "version": "0",
+    "id": "b15ce58e-555e-bb98-e00a-3a71dbd9f1d8",
+    "detail-type": "Scheduled Event",
+    "source": "aws.events",
+    "account": "640342642087",
+    "time": "2022-09-01T21:02:19Z",
+    "region": "us-east-1",
+    "resources": [
+        "arn:aws:events:us-east-1:640342642087:rule/ha-nat-test-every-minute"
+    ],
+    "detail": {}
+}
+
