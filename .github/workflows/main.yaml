@@ -80,7 +80,7 @@ jobs:
       - name: Update Lambda Function Code
         run: |
           aws lambda update-function-code --function-name $AUTOSCALING_LIFECYCLE_FUNCTION_NAME --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:${{ needs.get_outputs.outputs.image_tag }}
-          for i in $(seq "${{ needs.get_outputs.outputs.num_connectivity_tester_funcs }}"); do
+          for i in $(seq 0 $(expr "${{ needs.get_outputs.outputs.num_connectivity_tester_funcs }}" - 1)); do
             aws lambda update-function-code --function-name "$CONNECTIVITY_TEST_FUNCTION_NAME-$i" --image-uri "$ECR_REGISTRY/$ECR_REPOSITORY:${{ needs.get_outputs.outputs.image_tag }}"
           done
           #  publish_lambda_version_alias:
