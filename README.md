@@ -15,10 +15,10 @@ sam build
 sam local invoke <FUNCTION NAME> -e <event_filename>.json
 ```
 
-Example: 
+Example:
 
 ```
-cd functions/route-table
+cd functions/replace-route
 sam local invoke NATRouteTableFunction -e event.json
 ```
 
@@ -29,11 +29,11 @@ AWS_PROFILE=ChimeNonstable-Administrator aws sso login
 ```
 In terminal 2
 ```
-cd fuctions/route-tables
+cd fuctions/replace-route
 AWS_PROFILE=ChimeNonstable-Administrator sam build && AWS_PROFILE=ChimeNonstable-Administrator sam local start-lambda #This will start up a docker container running locally
 ```
 
 To invoke the function back in terminal 1
 ```
-AWS_PROFILE=ChimeNonstable-Administrator aws lambda invoke --function-name "NATRouteTableFunction" --endpoint-url "http://127.0.0.1:3001" --region us-east-1 --cli-binary-format raw-in-base64-out --payload file://functions/route-table/event.json --no-verify-ssl out.txt
+AWS_PROFILE=ChimeNonstable-Administrator aws lambda invoke --function-name "NATRouteTableFunction" --endpoint-url "http://127.0.0.1:3001" --region us-east-1 --cli-binary-format raw-in-base64-out --payload file://functions/replace-route/event.json --no-verify-ssl out.txt
 ```

@@ -61,6 +61,8 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
     logger.info("RESPONSE: %s", response)
 
 def handler(event, context):
+    logger.info(json.dumps(event))
+    sys.exit()
     try:
         #logger.info(json.dumps(event))
         for record in event["Records"]:
