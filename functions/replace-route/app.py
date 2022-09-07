@@ -122,3 +122,7 @@ def handler(event, context):
 
     except Exception as e:
         logging.error("Error: %s", str(e))
+        return {
+            'statusCode': 400,
+            'body': json.dumps(str(e))
+        }
