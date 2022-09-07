@@ -83,36 +83,3 @@ jobs:
           for i in $(seq 0 $(expr "${{ needs.get_outputs.outputs.num_connectivity_tester_funcs }}" - 1)); do
             aws lambda update-function-code --function-name "$CONNECTIVITY_TEST_FUNCTION_NAME-$i" --image-uri "$ECR_REGISTRY/$ECR_REPOSITORY:${{ needs.get_outputs.outputs.image_tag }}"
           done
-          #  publish_lambda_version_alias:
-          #    needs: [get_outputs, update_lambda_function]
-          #    permissions:
-          #      id-token: write
-          #      contents: read
-          #    runs-on: ubuntu-latest
-          #    steps:
-          #      - uses: actions/checkout@v3
-          #      - name: Configure AWS Credentials
-          #        uses: aws-actions/configure-aws-credentials@v1
-          #        with:
-          #          # TODO: Once ready for nonprod, update role to use ${{ needs.get_outputs.outputs.account_id }}
-          #          role-to-assume: arn:aws:iam::640342642087:role/github-ha-nat-lambda-update-function
-          #          aws-region: us-east-1
-          #      - name: Update Lifecycle Lambda Version and Alias
-          #        run: |
-          #          sleep 20 # Give time for previous job to finish updating lambda state
-          #          LAMBDA_VERSION=$(aws lambda publish-version --function-name $AUTOSCALING_LIFECYCLE_FUNCTION_NAME | jq '.Version | tonumber')
-          #          ALIAS_CREATED=$(aws lambda get-alias --function-name $AUTOSCALING_LIFECYCLE_FUNCTION_NAME --name ${{ needs.get_outputs.outputs.alias_name }} | jq '.Name')
-          #          if [ -z "${ALIAS_CREATED}" ]; \
-          #          then aws lambda create-alias --function-name $AUTOSCALING_LIFECYCLE_FUNCTION_NAME --description "Alias for ha-nat-autoscaling-hook Lambda" --function-version $LAMBDA_VERSION --name ${{ needs.get_outputs.outputs.alias_name }}; \
-          #          else aws lambda update-alias --function-name $AUTOSCALING_LIFECYCLE_FUNCTION_NAME --function-version $LAMBDA_VERSION --name ${{ needs.get_outputs.outputs.alias_name }}; fi
-          #      - name: Update Connectivity Lambda Version and Alias
-          #        run: |
-          #          for i in $(seq "${{ needs.get_outputs.outputs.num_connectivity_tester_funcs }}"); do
-          #            sleep 20 # Give time for previous job to finish updating lambda state
-          #            function_name = "$CONNECTIVITY_TEST_FUNCTION_NAME-$i"
-          #            LAMBDA_VERSION=$(aws lambda publish-version --function-name "$function_name" | jq '.Version | tonumber')
-          #            ALIAS_CREATED=$(aws lambda get-alias --function-name "$function_name" --name ${{ needs.get_outputs.outputs.alias_name }} | jq '.Name')
-          #            if [ -z "${ALIAS_CREATED}" ]; \
-          #            then aws lambda create-alias --function-name "$function_name" --description "Alias for ha-nat-route-table Lambda" --function-version $LAMBDA_VERSION --name ${{ needs.get_outputs.outputs.alias_name }}; \
-          #            else aws lambda update-alias --function-name "$function_name" --function-version $LAMBDA_VERSION --name ${{ needs.get_outputs.outputs.alias_name }}; fi
-          #          done
