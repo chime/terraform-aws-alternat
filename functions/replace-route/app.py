@@ -8,11 +8,14 @@ import sys
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
+AUTOSCALING_FUNC_NAME = "ha-nat-autoscaling-hook"
+SCHEDULED_FUNC_NAME = "ha-nat-connectivity-tester"
 LIFECYCLE_KEY = "LifecycleHookName"
 ASG_KEY = "AutoScalingGroupName"
 EC2_KEY = "EC2InstanceId"
 autoscaling = boto3.client("autoscaling")
 ec2 = boto3.client("ec2")
+boto_lambda = boto3.client("lambda")
 
 def get_vpc_zone_identifier(auto_scaling_group):
     asg_objects = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[auto_scaling_group])
@@ -36,6 +39,25 @@ def get_vpc_and_subnet_id(vpc_zone_identifier):
         return vpc_id, subnet_id, None
     else:
         return None, None, "Failed to describe subnet data"
+
+def get_vpc_and_subnet_id_from_lambda(function_name):
+    func = boto_lambda.get_function(FunctionName=function_name)
+    vpc_config = func.get("Configuration").get("VpcConfig")
+    if vpc_config == "":
+        logger.error("Unable to read VpcConfig from function")
+        sys.exit(1)
+
+    subnet_ids = vpc_config.get("SubnetIds")
+    if len(subnet_ids) != 1:
+        logger.error("Unable to find subnet ID for this function! Cannot replace route.")
+        sys.exit(1)
+    subnet_id = subnet_ids[0]
+    vpc_id = vpc_config.get("VpcId")
+    if vpc_id == "":
+        logger.error("Found multiple subnet IDs associated with this function! Cannot replace route.")
+        sys.exit(1)
+
+    return vpc_id, subnet_id
 
 def get_nat_gateway_id(vpc_id, subnet_id):
     nat_gateways = ec2.describe_nat_gateways(
@@ -78,8 +100,7 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
     else:
         return None, "Failed to replace route"
 
-def handler(event, context):
-    logger.info(json.dumps(event))
+def handle_autoscaling_hook(event):
     try:
         for record in event["Records"]:
             message = json.loads(record["Sns"]["Message"])
@@ -126,3 +147,38 @@ def handler(event, context):
             'statusCode': 400,
             'body': json.dumps(str(e))
         }
+
+# handle_connection_test() tests connectivity by first trying an
+# http GET on example.com. If that fails, try again on
+# google.com. If that fails, replace the route to use NAT gateway.
+def handle_connection_test(context):
+    if event.get("source") != "aws.events":
+        logger.error("Unable to handle unknown event type: ", json.dumps(event))
+        sys.exit(1)
+
+    import http.client as httplib, http.HTTPStatus as httpstatus
+
+    conn = httplib.HTTPSConnection("www.example.com")
+    conn.request("GET", "/")
+    response = conn.getresponse()
+    if response.status == httpstatus.OK:
+        return
+
+    conn = httplib.HTTPSConnection("www.google.com")
+    conn.request("GET", "/")
+    response = conn.getresponse()
+    if response.status == httpstatus.OK:
+        return
+
+    vpc_id, subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
+    nat_gateway_id = get_nat_gateway_id(vpc_id, subnet_id)
+    describe_and_replace_route(subnet_id, nat_gateway_id)
+
+
+def handler(event, context):
+    if context.function_name.startswith(AUTOSCALING_FUNC_NAME):
+        handle_autoscaling_hook(event)
+    elif context.function_name.startswith(SCHEDULED_FUNC_NAME):
+        handle_connection_test(context)
+    else:
+        logger.error("Unknown invocation function: %s", context.function_name)
