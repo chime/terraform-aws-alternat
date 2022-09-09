@@ -156,18 +156,19 @@ def handle_connection_test(event, context):
         logger.error("Unable to handle unknown event type: ", json.dumps(event))
         sys.exit(1)
 
-    import http.client as httplib, http.HTTPStatus as httpstatus
+    import http.client as httplib
+    from http import HTTPStatus
 
     conn = httplib.HTTPSConnection("www.example.com")
     conn.request("GET", "/")
     response = conn.getresponse()
-    if response.status == httpstatus.OK:
+    if response.status == HTTPStatus.OK:
         return
 
     conn = httplib.HTTPSConnection("www.google.com")
     conn.request("GET", "/")
     response = conn.getresponse()
-    if response.status == httpstatus.OK:
+    if response.status == HTTPStatus.OK:
         return
 
     vpc_id, subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
