@@ -151,7 +151,7 @@ def handle_autoscaling_hook(event):
 # handle_connection_test() tests connectivity by first trying an
 # http GET on example.com. If that fails, try again on
 # google.com. If that fails, replace the route to use NAT gateway.
-def handle_connection_test(context):
+def handle_connection_test(event, context):
     if event.get("source") != "aws.events":
         logger.error("Unable to handle unknown event type: ", json.dumps(event))
         sys.exit(1)
@@ -179,6 +179,6 @@ def handler(event, context):
     if context.function_name.startswith(AUTOSCALING_FUNC_NAME):
         handle_autoscaling_hook(event)
     elif context.function_name.startswith(SCHEDULED_FUNC_NAME):
-        handle_connection_test(context)
+        handle_connection_test(event, context)
     else:
         logger.error("Unknown invocation function: %s", context.function_name)
