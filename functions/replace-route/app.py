@@ -159,34 +159,26 @@ def handle_connection_test(event, context):
     import urllib
     from http import HTTPStatus
 
-    url="https://www.example.com"
-    try:
-       with urllib.request.urlopen(url, timeout=2) as response:
-           return
-    except urllib.error.HTTPError as e:
-        logger.error("Error: %s", e.code)
-    except urllib.error.URLError as e:
-        if hasattr(e, 'reason'):
-            logger.error("Error: %s", e.reason)
-        elif hasattr(e, 'code'):
-            logger.error("Error: %s", e.code)
-
-    url="https://www.google.com"
-    try:
-       with urllib.request.urlopen(url, timeout=2) as response:
-           return
-    except urllib.error.HTTPError as e:
-        logger.error("Error: %s", e.code)
-    except urllib.error.URLError as e:
-        if hasattr(e, 'reason'):
-            logger.error("Error: %s", e.reason)
-        elif hasattr(e, 'code'):
-            logger.error("Error: %s", e.code)
+    check_url("https://www.example.com")
+    check_url("https://www.google.com")
 
     vpc_id, subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
     nat_gateway_id = get_nat_gateway_id(vpc_id, subnet_id)
     describe_and_replace_route(subnet_id, nat_gateway_id)
 
+def check_url(url):
+    try:
+       with urllib.request.urlopen(url, timeout=2) as response:
+           return
+    except urllib.error.HTTPError as e:
+        logger.error("Error: %s", e.code)
+        sys.exit(1)
+    except urllib.error.URLError as e:
+        if hasattr(e, 'reason'):
+            logger.error("Error: %s", e.reason)
+        elif hasattr(e, 'code'):
+            logger.error("Error: %s", e.code)
+        sys.exit(1)
 
 def handler(event, context):
     if context.function_name.startswith(AUTOSCALING_FUNC_NAME):
