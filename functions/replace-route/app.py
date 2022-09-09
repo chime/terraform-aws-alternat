@@ -159,11 +159,11 @@ def handle_connection_test(event, context):
     from urllib.request import urlopen
     from http import HTTPStatus
 
-    resp = urlopen("https://www.example.com")
+    resp = urlopen("https://www.example.com", timeout=2)
     if resp.getcode() == HTTPStatus.OK:
         return
 
-    resp = urlopen("https://www.google.com")
+    resp = urlopen("https://www.google.com", timeout=2)
     if resp.getcode() == HTTPStatus.OK:
         return
 
