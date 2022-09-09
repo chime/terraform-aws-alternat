@@ -36,6 +36,7 @@ def get_vpc_zone_identifier(auto_scaling_group):
 
 def get_vpc_and_subnet_id(vpc_zone_identifier):
     subnets = ec2.describe_subnets(SubnetIds=[vpc_zone_identifier])
+    logger.info("SUBNETS: %s", subnets)
     if subnets["Subnets"] and len(subnets["Subnets"]) > 0:
         subnet = subnets["Subnets"][0]
         subnet_id = subnet["SubnetId"]
