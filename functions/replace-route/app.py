@@ -4,6 +4,9 @@ import time
 
 import boto3
 import sys
+import urllib
+from http import HTTPStatus
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -156,9 +159,6 @@ def handle_connection_test(event, context):
     if event.get("source") != "aws.events":
         logger.error("Unable to handle unknown event type: ", json.dumps(event))
         sys.exit(1)
-
-    import urllib
-    from http import HTTPStatus
 
     check_url("https://www.example.com")
     check_url("https://www.google.com")
