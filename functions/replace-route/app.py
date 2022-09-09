@@ -213,8 +213,8 @@ def handle_connection_test(event, context):
         logger.error("Unable to handle unknown event type: ", json.dumps(event))
         sys.exit(1)
 
-    check_url("https://www.example.com")
-    check_url("https://www.google.com")
+    check_url("www.example.com")
+    check_url("www.google.com")
 
     vpc_id, subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
     nat_gateway_id = get_nat_gateway_id(vpc_id, subnet_id)
