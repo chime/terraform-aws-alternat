@@ -54,27 +54,77 @@ def get_vpc_and_subnet_id_from_lambda(function_name):
         logger.error("Unable to read VpcConfig from function")
         sys.exit(1)
 
-    subnet_ids = vpc_config.get("SubnetIds")
-    if len(subnet_ids) != 1:
-        logger.error("Unable to find subnet ID for this function! Cannot replace route.")
-        sys.exit(1)
-    subnet_id = subnet_ids[0]
     vpc_id = vpc_config.get("VpcId")
     if vpc_id == "":
         logger.error("Found multiple subnet IDs associated with this function! Cannot replace route.")
         sys.exit(1)
 
-    return vpc_id, subnet_id
+    subnet_ids = vpc_config.get("SubnetIds")
+    if len(subnet_ids) != 1:
+        logger.error("Unable to find subnet ID for this function! Cannot replace route.")
+        sys.exit(1)
+    subnet_id = subnet_ids[0]
+
+    lambda_subnet = ec2.describe_subnets(
+        Filters = [
+            {
+                "Name": "subnet-id",
+                "Values": [
+                    subnet_id
+                ]
+            },
+        ]
+    )
+    lambda_subnets = lambda_subnet.get("Subnets")
+    if len(lambda_subnets) != 1:
+        logger.error("Unable to describe Lambda subnet ID! Cannot replace route.")
+        sys.exit(1)
+    if "AvailabilityZone" not in lambda_subnets[0]:
+        logger.error("Unable to find AZ of lambda function subnet! Cannot replace route.")
+        sys.exit(1)
+    az = lambda_subnets[0]["AvailabilityZone"]
+
+    az_subnets = ec2.describe_subnets(
+        Filters = [
+            {
+                "Name": "availability-zone",
+                "Values": [
+                    az
+                ]
+            },
+        ]
+    )
+    if len(az_subnets) < 1:
+        logger.error("Unable to find subnets associated with AZ! Cannot replace route.")
+        sys.exit(1)
+
+    public_subnet_id = ""
+    for subnet in az_subnets:
+        if subnet.get("Tags").get("Key") == "Name":
+            subnet_name = subnet.get("Tags").get("Value")
+            if subnet_name.contains("public-{az}"):
+                public_subnet_id = subnet["SubnetId"]
+                break
+
+    if public_subnet_id == "":
+        logger.error("Unable to find the public subnet ID for {az}! Cannot replace route.")
+        sys.exit(1)
+
+    return vpc_id, public_subnet_id
 
 def get_nat_gateway_id(vpc_id, subnet_id):
     nat_gateways = ec2.describe_nat_gateways(
-        Filters=[{ "Name": "vpc-id",
-                    "Values": [vpc_id]
-                    },
-                    { "Name": "subnet-id",
-                    "Values": [subnet_id]
-                    },
-                    ])
+        Filters=[
+            {
+                "Name": "vpc-id",
+                "Values": [vpc_id]
+            },
+            {
+                "Name": "subnet-id",
+                "Values": [subnet_id]
+            },
+        ]
+    )
     logger.info("SUBNET ID: %s", subnet_id)
     logger.info("NAT GATEWAY: %s", nat_gateways)
     if nat_gateways['NatGateways'] and len(nat_gateways['NatGateways']) > 0:
