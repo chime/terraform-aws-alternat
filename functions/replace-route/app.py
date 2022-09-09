@@ -156,16 +156,32 @@ def handle_connection_test(event, context):
         logger.error("Unable to handle unknown event type: ", json.dumps(event))
         sys.exit(1)
 
-    from urllib.request import urlopen
+    import urllib
     from http import HTTPStatus
 
-    resp = urlopen("https://www.example.com", timeout=2)
-    if resp.getcode() == HTTPStatus.OK:
-        return
+    url="https://www.example.com"
+    try:
+       with urllib.request.urlopen(url, timeout=2) as response:
+           return
+    except urllib.error.HTTPError as e:
+        logger.error("Error: %s", e.code)
+    except urllib.error.URLError as e:
+        if hasattr(e, 'reason'):
+            logger.error("Error: %s", e.reason)
+        elif hasattr(e, 'code'):
+            logger.error("Error: %s", e.code)
 
-    resp = urlopen("https://www.google.com", timeout=2)
-    if resp.getcode() == HTTPStatus.OK:
-        return
+    url="https://www.google.com"
+    try:
+       with urllib.request.urlopen(url, timeout=2) as response:
+           return
+    except urllib.error.HTTPError as e:
+        logger.error("Error: %s", e.code)
+    except urllib.error.URLError as e:
+        if hasattr(e, 'reason'):
+            logger.error("Error: %s", e.reason)
+        elif hasattr(e, 'code'):
+            logger.error("Error: %s", e.code)
 
     vpc_id, subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
     nat_gateway_id = get_nat_gateway_id(vpc_id, subnet_id)
