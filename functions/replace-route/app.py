@@ -172,16 +172,15 @@ def handle_connection_test(event, context):
 def check_url(url):
     try:
        with urllib.request.urlopen(url, timeout=2) as response:
-           return
+           sys.exit(0)
     except urllib.error.HTTPError as e:
-        logger.error("Error: %s", e.code)
-        sys.exit(1)
+        logger.error("ha-nat-connectivity error: %s", e.code)
     except urllib.error.URLError as e:
         if hasattr(e, 'reason'):
-            logger.error("Error: %s", e.reason)
+            logger.error("ha-nat-connectivity error: %s", e.reason)
         elif hasattr(e, 'code'):
-            logger.error("Error: %s", e.code)
-        sys.exit(1)
+            logger.error("ha-nat-connectivity error: %s", e.code)
+    return
 
 def handler(event, context):
     if context.function_name.startswith(AUTOSCALING_FUNC_NAME):
