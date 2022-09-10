@@ -223,10 +223,10 @@ def handle_connection_test(event, context):
 def check_connection(host):
     try:
         socket.create_connection((host,443), timeout=5)
+        logger.info("ha-nat-connectivity-test success connecting to %s", host)
     except socket.error as e:
         logger.error("ha-nat-connectivity-test error: %s", e)
     finally:
-        logger.info("ha-nat-connectivity-test success connecting to %s", host)
         sys.exit(0)
 
     return
