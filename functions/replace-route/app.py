@@ -221,15 +221,16 @@ def handle_connection_test(event, context):
     describe_and_replace_route(subnet_id, nat_gateway_id)
 
 def check_connection(host):
+    socket.setdefaulttimeout(5)
     try:
-        socket.create_connection((host,443), timeout=5)
-        logger.info("ha-nat-connectivity-test success connecting to %s", host)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((host,443))
+            logger.info("ha-nat-connectivity-test success connecting to %s", host)
+            sys.exit(0)
     except socket.error as e:
         logger.error("ha-nat-connectivity-test error: %s", e)
-    finally:
-        sys.exit(0)
+        return
 
-    return
 
 def handler(event, context):
     if context.function_name.startswith(AUTOSCALING_FUNC_NAME):
