@@ -208,13 +208,14 @@ def handle_autoscaling_hook(event):
 # handle_connection_test() tests connectivity by first trying an
 # http GET on example.com. If that fails, try again on
 # google.com. If that fails, replace the route to use NAT gateway.
+# If either call succeeds, connectivity is fine so just exit early.
 def handle_connection_test(event, context):
     if event.get("source") != "aws.events":
         logger.error("Unable to handle unknown event type: ", json.dumps(event))
         sys.exit(1)
 
-    check_url("https://www.example.com")
-    check_url("https://www.google.com")
+    check_url("http://www.example.com")
+    check_url("http://www.google.com")
 
     vpc_id, subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
     nat_gateway_id = get_nat_gateway_id(vpc_id, subnet_id)
@@ -225,12 +226,12 @@ def check_url(url):
        with urllib.request.urlopen(url, timeout=2) as response:
            sys.exit(0)
     except urllib.error.HTTPError as e:
-        logger.error("ha-nat-connectivity error: %s", e.code)
+        logger.error("ha-nat-connectivity-test error: %s", e.code)
     except urllib.error.URLError as e:
         if hasattr(e, 'reason'):
-            logger.error("ha-nat-connectivity error: %s", e.reason)
+            logger.error("ha-nat-connectivity-test error: %s", e.reason)
         elif hasattr(e, 'code'):
-            logger.error("ha-nat-connectivity error: %s", e.code)
+            logger.error("ha-nat-connectivity-test error: %s", e.code)
     return
 
 def handler(event, context):
