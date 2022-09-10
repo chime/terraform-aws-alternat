@@ -4,8 +4,7 @@ import time
 
 import boto3
 import sys
-import urllib
-from http import HTTPStatus
+import socket
 
 
 logger = logging.getLogger()
@@ -214,24 +213,20 @@ def handle_connection_test(event, context):
         logger.error("Unable to handle unknown event type: ", json.dumps(event))
         sys.exit(1)
 
-    check_url("http://www.example.com")
-    check_url("http://www.google.com")
+    check_connection("www.example.com")
+    check_connection("www.google.com")
 
     vpc_id, subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
     nat_gateway_id = get_nat_gateway_id(vpc_id, subnet_id)
     describe_and_replace_route(subnet_id, nat_gateway_id)
 
-def check_url(url):
+def check_connection(host):
     try:
-       with urllib.request.urlopen(url, timeout=2) as response:
-           sys.exit(0)
-    except urllib.error.HTTPError as e:
-        logger.error("ha-nat-connectivity-test error: %s", e.code)
-    except urllib.error.URLError as e:
-        if hasattr(e, 'reason'):
-            logger.error("ha-nat-connectivity-test error: %s", e.reason)
-        elif hasattr(e, 'code'):
-            logger.error("ha-nat-connectivity-test error: %s", e.code)
+        socket.create_connection((host,443), 5)
+        sys.exit(0)
+    except socket.error as e:
+        logger.error("ha-nat-connectivity-test error: {e}")
+
     return
 
 def handler(event, context):
