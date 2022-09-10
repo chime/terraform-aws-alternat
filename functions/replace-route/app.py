@@ -224,9 +224,9 @@ def check_connection(host):
     try:
         socket.create_connection((host,443), timeout=5)
     except socket.error as e:
-        logger.error("ha-nat-connectivity-test error: {e}")
+        logger.error("ha-nat-connectivity-test error: %s", e)
     finally:
-        logger.info("ha-nat-connectivity-test succeed connecting to {host}")
+        logger.info("ha-nat-connectivity-test success connecting to %s", host)
         sys.exit(0)
 
     return
