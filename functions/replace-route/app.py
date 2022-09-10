@@ -221,9 +221,9 @@ def handle_connection_test(event, context):
     describe_and_replace_route(subnet_id, nat_gateway_id)
 
 def check_connection(host):
+ socket.setdefaulttimeout(5)
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.timeout(5)
             s.connect((host,443))
             logger.info("ha-nat-connectivity-test success connecting to %s", host)
             sys.exit(0)
