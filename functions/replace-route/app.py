@@ -93,12 +93,12 @@ def get_vpc_and_subnet_id_from_lambda(function_name):
             },
         ]
     )
-    if len(az_subnets) < 1:
+    if len(az_subnets.get("Subnets")) < 1:
         logger.error("Unable to find subnets associated with AZ! Cannot replace route.")
         sys.exit(1)
 
     public_subnet_id = ""
-    for subnet in az_subnets:
+    for subnet in az_subnets.get("Subnets"):
         if subnet.get("Tags").get("Key") == "Name":
             subnet_name = subnet.get("Tags").get("Value")
             if subnet_name.contains("public-{az}"):
