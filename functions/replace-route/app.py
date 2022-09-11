@@ -97,6 +97,12 @@ def get_vpc_and_subnet_id_from_lambda(function_name):
                     az
                 ]
             },
+            {
+                "Name": "vpc-id",
+                "Values": [
+                    vpc_id
+                ]
+            },
         ]
     )
     if len(az_subnets.get("Subnets")) < 1:
@@ -117,7 +123,7 @@ def get_vpc_and_subnet_id_from_lambda(function_name):
         logger.error("Unable to find the public subnet ID for {}! Cannot replace route.".format(az))
         sys.exit(1)
 
-    logger.error("Found subnet {} in VPC {}".format(public_subnet_id, vpc_id))
+    logger.info("Found subnet {} in VPC {}".format(public_subnet_id, vpc_id))
     return vpc_id, public_subnet_id
 
 def get_nat_gateway_id(vpc_id, subnet_id):
