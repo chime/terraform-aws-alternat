@@ -168,6 +168,7 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
     )
     logger.info("RESPONSE: %s", response)
     if response["ResponseMetadata"] and response["ResponseMetadata"]['HTTPStatusCode'] == 200:
+        logger.info("Successfully replaced route!)
         return response, None
     else:
         return None, "Failed to replace route"
