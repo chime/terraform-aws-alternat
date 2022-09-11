@@ -242,7 +242,7 @@ def handle_connection_test(event, context):
         logger.error("ha-nat-connectivity-test error connecting to google.com, replacing route!")
 
     vpc_id, public_subnet_id, lambda_subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
-    nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
+    nat_gateway_id, _ = get_nat_gateway_id(vpc_id, public_subnet_id)
     describe_and_replace_route(lambda_subnet_id, nat_gateway_id)
 
 def handler(event, context):
