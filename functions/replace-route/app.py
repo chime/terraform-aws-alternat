@@ -4,7 +4,7 @@ import time
 
 import boto3
 import sys
-import socket
+import requests
 
 
 logger = logging.getLogger()
@@ -213,24 +213,22 @@ def handle_connection_test(event, context):
         logger.error("Unable to handle unknown event type: ", json.dumps(event))
         sys.exit(1)
 
-    check_connection("www.example.com")
-    check_connection("www.google.com")
+    response = requests.get("https://www.example.com")
+    if response.status_code == 200:
+        return
+
+    logger.error("ha-nat-connectivity-test error connecting to example.com, trying google.com")
+
+    response = requests.get("https://www.google.com")
+    if response.status_code == 200:
+        logger.info("ha-nat-connectivity-test success connecting to google.com.")
+        return
+
+    logger.error("ha-nat-connectivity-test error connecting to google.com, replacing route!")
 
     vpc_id, subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
     nat_gateway_id = get_nat_gateway_id(vpc_id, subnet_id)
     describe_and_replace_route(subnet_id, nat_gateway_id)
-
-def check_connection(host):
-    socket.setdefaulttimeout(5)
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((host,443))
-            logger.info("ha-nat-connectivity-test success connecting to %s", host)
-            sys.exit(0)
-    except socket.error as e:
-        logger.error("ha-nat-connectivity-test error connecting to %s: %s", host, e)
-        return
-
 
 def handler(event, context):
     if context.function_name.startswith(AUTOSCALING_FUNC_NAME):
