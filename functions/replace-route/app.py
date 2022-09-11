@@ -103,12 +103,12 @@ def get_vpc_and_subnet_id_from_lambda(function_name):
         for tag in tags:
             if tag.get("Key") == "Name":
                 subnet_name = tag.get("Value")
-                if "public-{az}" in subnet_name:
+                if "public-{}".format(az) in subnet_name:
                     public_subnet_id = subnet["SubnetId"]
                     break
 
     if public_subnet_id == "":
-        logger.error("Unable to find the public subnet ID for {az}! Cannot replace route.")
+        logger.error("Unable to find the public subnet ID for {}! Cannot replace route.".format(az))
         sys.exit(1)
 
     return vpc_id, public_subnet_id
