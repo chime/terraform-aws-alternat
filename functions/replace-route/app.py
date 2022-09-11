@@ -213,13 +213,13 @@ def handle_connection_test(event, context):
         logger.error("Unable to handle unknown event type: ", json.dumps(event))
         sys.exit(1)
 
-    response = requests.get("https://www.example.com")
+    response = requests.get("https://www.example.com", timeout=5)
     if response.status_code == 200:
         return
 
     logger.error("ha-nat-connectivity-test error connecting to example.com, trying google.com")
 
-    response = requests.get("https://www.google.com")
+    response = requests.get("https://www.google.com", timeout=5)
     if response.status_code == 200:
         logger.info("ha-nat-connectivity-test success connecting to google.com.")
         return
