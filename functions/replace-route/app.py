@@ -213,18 +213,17 @@ def handle_connection_test(event, context):
         logger.error("Unable to handle unknown event type: ", json.dumps(event))
         sys.exit(1)
 
-    response = requests.get("https://www.example.com", timeout=5)
-    if response.status_code == 200:
+    try:
+        requests.get("https://www.example.com", timeout=5)
         return
+    except requests.exceptions.RequestException as e:
+        logger.error("ha-nat-connectivity-test error connecting to example.com, trying google.com")
 
-    logger.error("ha-nat-connectivity-test error connecting to example.com, trying google.com")
-
-    response = requests.get("https://www.google.com", timeout=5)
-    if response.status_code == 200:
-        logger.info("ha-nat-connectivity-test success connecting to google.com.")
+    try:
+        requests.get("https://www.google.com", timeout=5)
         return
-
-    logger.error("ha-nat-connectivity-test error connecting to google.com, replacing route!")
+    except requests.exceptions.RequestException as e:
+        logger.error("ha-nat-connectivity-test error connecting to google.com, replacing route!")
 
     vpc_id, subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
     nat_gateway_id = get_nat_gateway_id(vpc_id, subnet_id)
