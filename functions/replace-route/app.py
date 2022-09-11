@@ -103,7 +103,7 @@ def get_vpc_and_subnet_id_from_lambda(function_name):
         for tag in tags:
             if tag.get("Key") == "Name":
                 subnet_name = tag.get("Value")
-                if subnet_name.contains("public-{az}"):
+                if "public-{az}" in subnet_name:
                     public_subnet_id = subnet["SubnetId"]
                     break
 
