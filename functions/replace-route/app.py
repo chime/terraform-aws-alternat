@@ -88,6 +88,7 @@ def get_vpc_and_subnet_id_from_lambda(function_name):
         logger.error("Unable to find AZ of lambda function subnet! Cannot replace route.")
         sys.exit(1)
     az = lambda_subnets[0]["AvailabilityZone"]
+    lambda_subnet_id = lambda_subnets[0].get("SubnetId")
 
     az_subnets = ec2.describe_subnets(
         Filters = [
@@ -116,7 +117,7 @@ def get_vpc_and_subnet_id_from_lambda(function_name):
             if tag.get("Key") == "Name":
                 subnet_name = tag.get("Value")
                 if "public-{}".format(az) in subnet_name:
-                    public_subnet_id = subnet["SubnetId"]
+                    public_subnet_id = subnet.get("SubnetId")
                     break
 
     if public_subnet_id == "":
@@ -124,7 +125,7 @@ def get_vpc_and_subnet_id_from_lambda(function_name):
         sys.exit(1)
 
     logger.info("Found subnet {} in VPC {}".format(public_subnet_id, vpc_id))
-    return vpc_id, public_subnet_id
+    return vpc_id, public_subnet_id, lambda_subnet_id
 
 def get_nat_gateway_id(vpc_id, subnet_id):
     nat_gateways = ec2.describe_nat_gateways(
@@ -240,9 +241,9 @@ def handle_connection_test(event, context):
     except requests.exceptions.RequestException as e:
         logger.error("ha-nat-connectivity-test error connecting to google.com, replacing route!")
 
-    vpc_id, subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
-    nat_gateway_id = get_nat_gateway_id(vpc_id, subnet_id)
-    describe_and_replace_route(subnet_id, nat_gateway_id)
+    vpc_id, public_subnet_id, lambda_subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
+    nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
+    describe_and_replace_route(lambda_subnet_id, nat_gateway_id)
 
 def handler(event, context):
     if context.function_name.startswith(AUTOSCALING_FUNC_NAME):
