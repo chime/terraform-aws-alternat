@@ -35,9 +35,9 @@ def get_vpc_zone_identifier(auto_scaling_group):
         logger.info("ASG: %s", asg)
         vpc_zone_identifier = asg["VPCZoneIdentifier"]
         logger.info("VPC_ZONE_IDENTIFIER: %s", vpc_zone_identifier)
-        return vpc_zone_identifier, None
+        return vpc_zone_identifier
     else:
-        return None, "Failed to describe autoscaling group data"
+        raise MissingVPCZoneIdentifierError(asg_objects)
 
 def get_vpc_and_subnet_id(vpc_zone_identifier):
     try:
@@ -54,9 +54,9 @@ def get_vpc_and_subnet_id(vpc_zone_identifier):
         logger.info("SUBNET_ID: %s", subnet_id)
         vpc_id = subnet["VpcId"]
         logger.info("VPC_ID: %s", vpc_id)
-        return vpc_id, subnet_id, None
+        return vpc_id, subnet_id
     else:
-        return None, None, "Failed to describe subnet data"
+        raise MissingVPCandSubnetError(subnets)
 
 # This function operates as follows:
 # - Get the Lambda function currently being executed
@@ -234,18 +234,9 @@ def handle_autoscaling_hook(event):
                 logger.info("LIFECYLE_HOOK: %s", life_cycle_hook)
                 logger.info("AUTO_SCALING_GROUP: %s", auto_scaling_group)
                 logger.info("INSANCE_ID: %s", instance_id)
-                vpc_zone_identifier, err = get_vpc_zone_identifier(auto_scaling_group)
-                if err is not None:
-                    return {
-                        'statusCode': 400,
-                        'body': json.dumps(err)
-                    }
-                vpc_id, subnet_id, err = get_vpc_and_subnet_id(vpc_zone_identifier)
-                if err is not None:
-                    return {
-                        'statusCode': 400,
-                        'body': json.dumps(err)
-                    }
+                vpc_zone_identifier = get_vpc_zone_identifier(auto_scaling_group)
+                vpc_id, subnet_id = get_vpc_and_subnet_id(vpc_zone_identifier)
+
                 nat_gateway_id, err = get_nat_gateway_id(vpc_id, subnet_id)
                 if err is not None:
                     return {
@@ -316,3 +307,9 @@ class MissingFunctionSubnetError(Exception): pass
 
 
 class MissingAZSubnetError(Exception): pass
+
+
+class MissingVPCZoneIdentifierError(Exception): pass
+
+
+class MissingVPCandSubnetError(Exception): pass
