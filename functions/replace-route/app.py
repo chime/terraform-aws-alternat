@@ -24,7 +24,12 @@ ec2 = boto3.client("ec2")
 boto_lambda = boto3.client("lambda")
 
 def get_vpc_zone_identifier(auto_scaling_group):
-    asg_objects = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[auto_scaling_group])
+    try:
+        asg_objects = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[auto_scaling_group])
+    except botocore.exceptions.ClientError as error:
+        logger.error("Unable to get vpc zone identifier")
+        raise error
+
     if asg_objects["AutoScalingGroups"] and len(asg_objects["AutoScalingGroups"]) > 0:
         asg = asg_objects["AutoScalingGroups"][0]
         logger.info("ASG: %s", asg)
@@ -35,9 +40,15 @@ def get_vpc_zone_identifier(auto_scaling_group):
         return None, "Failed to describe autoscaling group data"
 
 def get_vpc_and_subnet_id(vpc_zone_identifier):
-    subnets = ec2.describe_subnets(SubnetIds=[vpc_zone_identifier])
+    try:
+        subnets = ec2.describe_subnets(SubnetIds=[vpc_zone_identifier])
+    except botocore.exceptions.ClientError as error:
+        logger.error("Unable to get vpc and subnet id")
+        raise error
+
     logger.info("SUBNETS: %s", subnets)
     if subnets["Subnets"] and len(subnets["Subnets"]) > 0:
+        logger.info("SUBNETS LENGTH: %s", len(subnets["Subnets"]))
         subnet = subnets["Subnets"][0]
         subnet_id = subnet["SubnetId"]
         logger.info("SUBNET_ID: %s", subnet_id)
@@ -152,18 +163,23 @@ def get_vpc_and_subnets_from_lambda(function_name):
     return vpc_id, public_subnet_id, lambda_subnet_id
 
 def get_nat_gateway_id(vpc_id, subnet_id):
-    nat_gateways = ec2.describe_nat_gateways(
-        Filters=[
-            {
-                "Name": "vpc-id",
-                "Values": [vpc_id]
-            },
-            {
-                "Name": "subnet-id",
-                "Values": [subnet_id]
-            },
-        ]
-    )
+    try: 
+        nat_gateways = ec2.describe_nat_gateways(
+            Filters=[
+                {
+                    "Name": "vpc-id",
+                    "Values": [vpc_id]
+                },
+                {
+                    "Name": "subnet-id",
+                    "Values": [subnet_id]
+                },
+            ]
+        )
+    except botocore.exceptions.ClientError as error:
+        logger.error("Unable to describe nat gateway")
+        raise error
+
     logger.info("SUBNET ID: %s", subnet_id)
     logger.info("NAT GATEWAY: %s", nat_gateways)
     if nat_gateways['NatGateways'] and len(nat_gateways['NatGateways']) > 0:
@@ -174,22 +190,32 @@ def get_nat_gateway_id(vpc_id, subnet_id):
         return None, "Failed To describe nat gateways"
 
 def describe_and_replace_route(subnet_id, nat_gateway_id):
-    route_tables = ec2.describe_route_tables(
-        Filters=[{ "Name": "association.subnet-id",
-                    "Values": [subnet_id]
-                    }]
-    )
+    try:
+        route_tables = ec2.describe_route_tables(
+            Filters=[{ "Name": "association.subnet-id",
+                        "Values": [subnet_id]
+                        }]
+        )
+    except botocore.exceptions.ClientError as error:
+        logger.error("Unable to describe route tables")
+        raise error
+
     if route_tables['RouteTables'] and len(route_tables['RouteTables']) > 0:
         route_table = route_tables['RouteTables'][0]
         logger.info("ROUTE_TABLE: %s", route_table)
     else:
         return None, "Failed to describe route tables"
 
-    response = ec2.replace_route(
-        DestinationCidrBlock="0.0.0.0/0",
-        NatGatewayId=nat_gateway_id,
-        RouteTableId=route_table["RouteTableId"],
-    )
+    try:
+        response = ec2.replace_route(
+            DestinationCidrBlock="0.0.0.0/0",
+            NatGatewayId=nat_gateway_id,
+            RouteTableId=route_table["RouteTableId"],
+        )
+    except botocore.exceptions.ClientError as error:
+        logger.error("Unable to replace route")
+        raise error
+
     logger.info("RESPONSE: %s", response)
     if response["ResponseMetadata"] and response["ResponseMetadata"]['HTTPStatusCode'] == 200:
         logger.info("Successfully replaced route!")
