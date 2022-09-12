@@ -2,6 +2,7 @@ import json
 import logging
 import time
 
+import botocore
 import boto3
 import sys
 import requests
