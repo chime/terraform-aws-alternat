@@ -46,69 +46,92 @@ def get_vpc_and_subnet_id(vpc_zone_identifier):
     else:
         return None, None, "Failed to describe subnet data"
 
-def get_vpc_and_subnet_id_from_lambda(function_name):
-    func = boto_lambda.get_function(FunctionName=function_name)
+# This function operates as follows:
+# - Get the Lambda function currently being executed
+# - Read the VPC config of the function
+# - Find the VPC and subnet IDs of the function
+# - Use the VPC and subnet ID to deduce which AZ the function runs in
+# - Use the VPC ID and AZ to deduce which corresponding public subnet the NAT Gateway is in
+# - Return the VPC ID, private subnet ID of the Lambda, and public subnet ID of the NAT
+#   Gateway for use in replacing the route.
+def get_vpc_and_subnets_from_lambda(function_name):
+    try:
+        func = boto_lambda.get_function(FunctionName=function_name)
+    except botocore.exceptions.ClientError as error:
+        logger.error("Unable to get Lambda function")
+        raise error
+
     vpc_config = func.get("Configuration").get("VpcConfig")
     if vpc_config == "":
         logger.error("Unable to read VpcConfig from function")
-        sys.exit(1)
+        raise MissingVpcConfigError(func.get("Configuration"))
 
     vpc_id = vpc_config.get("VpcId")
     if vpc_id == "":
-        logger.error("Found multiple subnet IDs associated with this function! Cannot replace route.")
-        sys.exit(1)
+        logger.error("Could not get VpcId from Lambda VpcConfig")
+        raise MissingVpcConfigError(vpc_config)
 
     subnet_ids = vpc_config.get("SubnetIds")
     if len(subnet_ids) != 1:
-        logger.error("Unable to find subnet ID for this function! Cannot replace route.")
-        sys.exit(1)
+        logger.error("Unable to find single subnet ID for this function! Cannot replace route.")
+        raise MissingFunctionSubnetError(vpc_config)
     subnet_id = subnet_ids[0]
 
-    lambda_subnet = ec2.describe_subnets(
-        Filters = [
-            {
-                "Name": "subnet-id",
-                "Values": [
-                    subnet_id
-                ]
-            },
-            {
-                "Name": "vpc-id",
-                "Values": [
-                    vpc_id
-                ]
-            },
-        ]
-    )
+    try:
+        lambda_subnet = ec2.describe_subnets(
+            Filters = [
+                {
+                    "Name": "subnet-id",
+                    "Values": [
+                        subnet_id
+                    ]
+                },
+                {
+                    "Name": "vpc-id",
+                    "Values": [
+                        vpc_id
+                    ]
+                },
+            ]
+        )
+    except botocore.exceptions.ClientError as error:
+        logger.error("Unable to describe subnets")
+        raise error
+
     lambda_subnets = lambda_subnet.get("Subnets")
     if len(lambda_subnets) != 1:
         logger.error("Unable to describe Lambda subnet ID! Cannot replace route.")
-        sys.exit(1)
+        raise
     if "AvailabilityZone" not in lambda_subnets[0]:
         logger.error("Unable to find AZ of lambda function subnet! Cannot replace route.")
-        sys.exit(1)
+        raise MissingAZSubnetError(lambda_subnets)
     az = lambda_subnets[0]["AvailabilityZone"]
     lambda_subnet_id = lambda_subnets[0].get("SubnetId")
 
-    az_subnets = ec2.describe_subnets(
-        Filters = [
-            {
-                "Name": "availability-zone",
-                "Values": [
-                    az
-                ]
-            },
-            {
-                "Name": "vpc-id",
-                "Values": [
-                    vpc_id
-                ]
-            },
-        ]
-    )
+    try:
+        az_subnets = ec2.describe_subnets(
+            Filters = [
+                {
+                    "Name": "availability-zone",
+                    "Values": [
+                        az
+                    ]
+                },
+                {
+                    "Name": "vpc-id",
+                    "Values": [
+                        vpc_id
+                    ]
+                },
+            ]
+        )
+    except botocore.exceptions.ClientError as error:
+        logger.error("Unable to describe subnets")
+        raise error
+
     if len(az_subnets.get("Subnets")) < 1:
         logger.error("Unable to find subnets associated with AZ! Cannot replace route.")
-        sys.exit(1)
+        raise MissingAZSubnetError(az_subnets)
 
     public_subnet_id = ""
     for subnet in az_subnets.get("Subnets"):
@@ -116,15 +139,15 @@ def get_vpc_and_subnet_id_from_lambda(function_name):
         for tag in tags:
             if tag.get("Key") == "Name":
                 subnet_name = tag.get("Value")
-                if "public-{}".format(az) in subnet_name:
+                if f"public-{az}" in subnet_name:
                     public_subnet_id = subnet.get("SubnetId")
                     break
 
     if public_subnet_id == "":
-        logger.error("Unable to find the public subnet ID for {}! Cannot replace route.".format(az))
-        sys.exit(1)
+        logger.error(f"Unable to find the public subnet ID for {az}! Cannot replace route.")
+        raise MissingAZSubnetError(az_subnets)
 
-    logger.info("Found subnet {} in VPC {}".format(public_subnet_id, vpc_id))
+    logger.info(f"Found subnet {public_subnet_id} in VPC {vpc_id}")
     return vpc_id, public_subnet_id, lambda_subnet_id
 
 def get_nat_gateway_id(vpc_id, subnet_id):
@@ -168,7 +191,7 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
     )
     logger.info("RESPONSE: %s", response)
     if response["ResponseMetadata"] and response["ResponseMetadata"]['HTTPStatusCode'] == 200:
-        logger.info("Successfully replaced route!)
+        logger.info("Successfully replaced route!")
         return response, None
     else:
         return None, "Failed to replace route"
@@ -233,16 +256,16 @@ def handle_connection_test(event, context):
     try:
         requests.get("https://www.example.com", timeout=5)
         return
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException as error:
         logger.error("ha-nat-connectivity-test error connecting to example.com, trying google.com")
 
     try:
         requests.get("https://www.google.com", timeout=5)
         return
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException as error:
         logger.error("ha-nat-connectivity-test error connecting to google.com, replacing route!")
 
-    vpc_id, public_subnet_id, lambda_subnet_id = get_vpc_and_subnet_id_from_lambda(context.function_name)
+    vpc_id, public_subnet_id, lambda_subnet_id = get_vpc_and_subnets_from_lambda(context.function_name)
     nat_gateway_id, _ = get_nat_gateway_id(vpc_id, public_subnet_id)
     describe_and_replace_route(lambda_subnet_id, nat_gateway_id)
 
@@ -252,4 +275,17 @@ def handler(event, context):
     elif context.function_name.startswith(SCHEDULED_FUNC_NAME):
         handle_connection_test(event, context)
     else:
-        logger.error("Unknown invocation function: %s", context.function_name)
+        logger.error("Unknown function invocation: %s", context.function_name)
+        raise UnknownFunctionInvocation(context.function_name)
+
+
+class UnknownFunctionInvocation(Exception): pass
+
+
+class MissingVpcConfigError(Exception): pass
+
+
+class MissingFunctionSubnetError(Exception): pass
+
+
+class MissingAZSubnetError(Exception): pass
