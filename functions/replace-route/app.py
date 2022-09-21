@@ -229,12 +229,12 @@ def get_nat_gateway_id(vpc_id, subnet_id):
         raise error
 
     logger.info("NAT GATEWAYS: %s", nat_gateways)
-    if nat_gateways['NatGateways'] and len(nat_gateways['NatGateways']) > 0:
-        nat_gateway_id = nat_gateways['NatGateways'][0]["NatGatewayId"]
-        logger.info("NAT_GATEWAY_ID %s", nat_gateway_id)
-        return nat_gateway_id, None
-    else:
-        return None, "Failed To describe nat gateways"
+    if len(nat_gateways.get("NatGateways")) < 1:
+        raise MissingNatGatewayError(nat_gateways)
+
+    nat_gateway_id = nat_gateways['NatGateways'][0]["NatGatewayId"]
+    logger.info("NAT_GATEWAY_ID %s", nat_gateway_id)
+    return nat_gateway_id
 
 def describe_and_replace_route(subnet_id, nat_gateway_id):
     try:
@@ -247,28 +247,22 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
         logger.error("Unable to describe route tables")
         raise error
 
-    if route_tables['RouteTables'] and len(route_tables['RouteTables']) > 0:
-        route_table = route_tables['RouteTables'][0]
-        logger.info("ROUTE_TABLE: %s", route_table)
-    else:
-        return None, "Failed to describe route tables"
+    if len(route_tables.get("RouteTables")) < 1:
+        raise MissingRouteTableError(route_tables)
+
+    route_table = route_tables['RouteTables'][0]
+    logger.info("ROUTE_TABLE: %s", route_table)
 
     try:
-        response = ec2.replace_route(
+        ec2.replace_route(
             DestinationCidrBlock="0.0.0.0/0",
             NatGatewayId=nat_gateway_id,
             RouteTableId=route_table["RouteTableId"],
         )
+        logger.info("SUCCESSFULLY REPLACED ROUTE!")
     except botocore.exceptions.ClientError as error:
         logger.error("Unable to replace route")
         raise error
-
-    logger.info("RESPONSE: %s", response)
-    if response["ResponseMetadata"] and response["ResponseMetadata"]['HTTPStatusCode'] == 200:
-        logger.info("Successfully replaced route!")
-        return response, None
-    else:
-        return None, "Failed to replace route"
 
 def handle_autoscaling_hook(event):
     try:
@@ -283,24 +277,13 @@ def handle_autoscaling_hook(event):
                 logger.info("INSANCE_ID: %s", instance_id)
                 availability_zone, vpc_zone_identifier = get_az_and_vpc_zone_identifier(auto_scaling_group)
                 vpc_id, private_subnet_id, public_subnet_id = get_vpc_and_subnet_id(availability_zone, vpc_zone_identifier)
-
-                nat_gateway_id, err = get_nat_gateway_id(vpc_id, public_subnet_id)
-                if err is not None:
-                    return {
-                        'statusCode': 400,
-                        'body': json.dumps(err)
-                    }
-                response, err = describe_and_replace_route(private_subnet_id, nat_gateway_id)
-                if err is not None:
-                    return {
-                        'statusCode': 400,
-                        'body': json.dumps(err)
-                    }
-                else:
-                    return {
-                        'statusCode': 200,
-                        'body': json.dumps("Route replace succeeded")
-                    }
+                nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
+                describe_and_replace_route(private_subnet_id, nat_gateway_id)
+                
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps("Route replace succeeded")
+                }
 
     except Exception as e:
         logging.error("Error: %s", str(e))
@@ -331,7 +314,7 @@ def handle_connection_test(event, context):
         logger.error("ha-nat-connectivity-test error connecting to google.com, replacing route!")
 
     vpc_id, public_subnet_id, lambda_subnet_id = get_vpc_and_subnets_from_lambda(context.function_name)
-    nat_gateway_id, _ = get_nat_gateway_id(vpc_id, public_subnet_id)
+    nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
     describe_and_replace_route(lambda_subnet_id, nat_gateway_id)
 
 def handler(event, context):
@@ -360,3 +343,9 @@ class MissingVPCZoneIdentifierError(Exception): pass
 
 
 class MissingVPCandSubnetError(Exception): pass
+
+
+class MissingNatGatewayError(Exception): pass
+
+
+class MissingRouteTableError(Exception): pass
