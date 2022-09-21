@@ -14,7 +14,7 @@ logging.getLogger('boto3').setLevel(logging.CRITICAL)
 logging.getLogger('botocore').setLevel(logging.CRITICAL)
 
 
-AUTOSCALING_FUNC_NAME = "NATRouteTableFunction" # "ha-nat-autoscaling-hook"
+AUTOSCALING_FUNC_NAME = "ha-nat-autoscaling-hook"
 SCHEDULED_FUNC_NAME = "ha-nat-connectivity-tester"
 LIFECYCLE_KEY = "LifecycleHookName"
 ASG_KEY = "AutoScalingGroupName"
@@ -42,7 +42,6 @@ def get_az_and_vpc_zone_identifier(auto_scaling_group):
         raise MissingVPCZoneIdentifierError(asg_objects)
 
 def get_vpc_and_subnet_id(asg_az, vpc_zone_identifier):
-    # TODO need to find  we need to find the corresponding private subnet for the same AZ
     try:
         subnets = ec2.describe_subnets(SubnetIds=[vpc_zone_identifier])
 
@@ -86,15 +85,12 @@ def get_vpc_and_subnet_id(asg_az, vpc_zone_identifier):
         logger.error("Unable to find subnets associated with AZ! Cannot replace route.")
         raise MissingAZSubnetError(az_subnets)
     
-    logger.info("AZ_SUBNETS LENGTH: %s", len(az_subnets.get("Subnets"))) # get rid of after testing
-
     private_subnet_id = ""
     for subnet in az_subnets.get("Subnets"):
         tags = subnet.get("Tags")
         for tag in tags:
             if tag.get("Key") == "Name":
                 subnet_name = tag.get("Value")
-                logger.info("AZ SUBNET LOOP: %s", subnet_name) # get rid of after testing
                 if f"private-{asg_az}" in subnet_name:
                     private_subnet_id = subnet.get("SubnetId")
                     break
