@@ -23,7 +23,7 @@ autoscaling = boto3.client("autoscaling")
 ec2 = boto3.client("ec2")
 boto_lambda = boto3.client("lambda")
 
-def get_vpc_zone_identifier(auto_scaling_group):
+def get_az_and_vpc_zone_identifier(auto_scaling_group):
     try:
         asg_objects = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[auto_scaling_group])
     except botocore.exceptions.ClientError as error:
@@ -33,30 +33,74 @@ def get_vpc_zone_identifier(auto_scaling_group):
     if asg_objects["AutoScalingGroups"] and len(asg_objects["AutoScalingGroups"]) > 0:
         asg = asg_objects["AutoScalingGroups"][0]
         logger.info("ASG: %s", asg)
+        availability_zone = asg["AvailabilityZones"][0]
+        logger.info("AZ ZONE: %s", availability_zone)
         vpc_zone_identifier = asg["VPCZoneIdentifier"]
         logger.info("VPC_ZONE_IDENTIFIER: %s", vpc_zone_identifier)
-        return vpc_zone_identifier
+        return availability_zone, vpc_zone_identifier
     else:
         raise MissingVPCZoneIdentifierError(asg_objects)
 
-def get_vpc_and_subnet_id(vpc_zone_identifier):
+def get_vpc_and_subnet_id(asg_az, vpc_zone_identifier):
     try:
         subnets = ec2.describe_subnets(SubnetIds=[vpc_zone_identifier])
+
     except botocore.exceptions.ClientError as error:
         logger.error("Unable to get vpc and subnet id")
         raise error
 
     logger.info("SUBNETS: %s", subnets)
     if subnets["Subnets"] and len(subnets["Subnets"]) > 0:
-        logger.info("SUBNETS LENGTH: %s", len(subnets["Subnets"]))
+        logger.info("ASG_SUBNETS LENGTH: %s", len(subnets["Subnets"]))
         subnet = subnets["Subnets"][0]
-        subnet_id = subnet["SubnetId"]
-        logger.info("SUBNET_ID: %s", subnet_id)
+        public_subnet_id = subnet["SubnetId"]
+        logger.info("PUBLIC_SUBNET_ID: %s", public_subnet_id)
         vpc_id = subnet["VpcId"]
         logger.info("VPC_ID: %s", vpc_id)
-        return vpc_id, subnet_id
     else:
         raise MissingVPCandSubnetError(subnets)
+
+    try:
+        az_subnets = ec2.describe_subnets(
+            Filters = [
+                {
+                    "Name": "availability-zone",
+                    "Values": [
+                        asg_az
+                    ]
+                },
+                {
+                    "Name": "vpc-id",
+                    "Values": [
+                        vpc_id
+                    ]
+                },
+            ]
+        )
+    except botocore.exceptions.ClientError as error:
+        logger.error("Unable to describe subnets")
+        raise error
+
+    if len(az_subnets.get("Subnets")) < 1:
+        logger.error("Unable to find subnets associated with AZ! Cannot replace route.")
+        raise MissingAZSubnetError(az_subnets)
+    
+    private_subnet_id = ""
+    for subnet in az_subnets.get("Subnets"):
+        tags = subnet.get("Tags")
+        for tag in tags:
+            if tag.get("Key") == "Name":
+                subnet_name = tag.get("Value")
+                if f"private-{asg_az}" in subnet_name:
+                    private_subnet_id = subnet.get("SubnetId")
+                    break
+
+    if private_subnet_id == "":
+        logger.error(f"Unable to find the private subnet ID for {asg_az}! Cannot replace route.")
+        raise MissingAZSubnetError(az_subnets)
+
+    logger.info("PRIVATE_SUBNET_ID: %s", private_subnet_id)
+    return vpc_id, private_subnet_id, public_subnet_id
 
 # This function operates as follows:
 # - Get the Lambda function currently being executed
@@ -180,14 +224,13 @@ def get_nat_gateway_id(vpc_id, subnet_id):
         logger.error("Unable to describe nat gateway")
         raise error
 
-    logger.info("SUBNET ID: %s", subnet_id)
-    logger.info("NAT GATEWAY: %s", nat_gateways)
-    if nat_gateways['NatGateways'] and len(nat_gateways['NatGateways']) > 0:
-        nat_gateway_id = nat_gateways['NatGateways'][0]["NatGatewayId"]
-        logger.info("NAT_GATEWAY_ID %s", nat_gateway_id)
-        return nat_gateway_id, None
-    else:
-        return None, "Failed To describe nat gateways"
+    logger.info("NAT GATEWAYS: %s", nat_gateways)
+    if len(nat_gateways.get("NatGateways")) < 1:
+        raise MissingNatGatewayError(nat_gateways)
+
+    nat_gateway_id = nat_gateways['NatGateways'][0]["NatGatewayId"]
+    logger.info("NAT_GATEWAY_ID %s", nat_gateway_id)
+    return nat_gateway_id
 
 def describe_and_replace_route(subnet_id, nat_gateway_id):
     try:
@@ -200,28 +243,22 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
         logger.error("Unable to describe route tables")
         raise error
 
-    if route_tables['RouteTables'] and len(route_tables['RouteTables']) > 0:
-        route_table = route_tables['RouteTables'][0]
-        logger.info("ROUTE_TABLE: %s", route_table)
-    else:
-        return None, "Failed to describe route tables"
+    if len(route_tables.get("RouteTables")) < 1:
+        raise MissingRouteTableError(route_tables)
+
+    route_table = route_tables['RouteTables'][0]
+    logger.info("ROUTE_TABLE: %s", route_table)
 
     try:
-        response = ec2.replace_route(
+        ec2.replace_route(
             DestinationCidrBlock="0.0.0.0/0",
             NatGatewayId=nat_gateway_id,
             RouteTableId=route_table["RouteTableId"],
         )
+        logger.info("SUCCESSFULLY REPLACED ROUTE!")
     except botocore.exceptions.ClientError as error:
         logger.error("Unable to replace route")
         raise error
-
-    logger.info("RESPONSE: %s", response)
-    if response["ResponseMetadata"] and response["ResponseMetadata"]['HTTPStatusCode'] == 200:
-        logger.info("Successfully replaced route!")
-        return response, None
-    else:
-        return None, "Failed to replace route"
 
 def handle_autoscaling_hook(event):
     try:
@@ -234,26 +271,15 @@ def handle_autoscaling_hook(event):
                 logger.info("LIFECYLE_HOOK: %s", life_cycle_hook)
                 logger.info("AUTO_SCALING_GROUP: %s", auto_scaling_group)
                 logger.info("INSANCE_ID: %s", instance_id)
-                vpc_zone_identifier = get_vpc_zone_identifier(auto_scaling_group)
-                vpc_id, subnet_id = get_vpc_and_subnet_id(vpc_zone_identifier)
-
-                nat_gateway_id, err = get_nat_gateway_id(vpc_id, subnet_id)
-                if err is not None:
-                    return {
-                        'statusCode': 400,
-                        'body': json.dumps(err)
-                    }
-                response, err = describe_and_replace_route(subnet_id, nat_gateway_id)
-                if err is not None:
-                    return {
-                        'statusCode': 400,
-                        'body': json.dumps(err)
-                    }
-                else:
-                    return {
-                        'statusCode': 200,
-                        'body': json.dumps("Route replace succeeded")
-                    }
+                availability_zone, vpc_zone_identifier = get_az_and_vpc_zone_identifier(auto_scaling_group)
+                vpc_id, private_subnet_id, public_subnet_id = get_vpc_and_subnet_id(availability_zone, vpc_zone_identifier)
+                nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
+                describe_and_replace_route(private_subnet_id, nat_gateway_id)
+                
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps("Route replace succeeded")
+                }
 
     except Exception as e:
         logging.error("Error: %s", str(e))
@@ -284,7 +310,7 @@ def handle_connection_test(event, context):
         logger.error("ha-nat-connectivity-test error connecting to google.com, replacing route!")
 
     vpc_id, public_subnet_id, lambda_subnet_id = get_vpc_and_subnets_from_lambda(context.function_name)
-    nat_gateway_id, _ = get_nat_gateway_id(vpc_id, public_subnet_id)
+    nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
     describe_and_replace_route(lambda_subnet_id, nat_gateway_id)
 
 def handler(event, context):
@@ -313,3 +339,9 @@ class MissingVPCZoneIdentifierError(Exception): pass
 
 
 class MissingVPCandSubnetError(Exception): pass
+
+
+class MissingNatGatewayError(Exception): pass
+
+
+class MissingRouteTableError(Exception): pass
