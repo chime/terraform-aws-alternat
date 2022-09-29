@@ -1,85 +1,64 @@
-name: Lambda Push to ECR
+name: Build
 
-on: push
-
-env:
-  ECR_REGISTRY: 358789136651.dkr.ecr.us-east-1.amazonaws.com
-  ECR_REPOSITORY: ha-nat-functions-lambda
-  AUTOSCALING_LIFECYCLE_FUNCTION_NAME: ha-nat-autoscaling-hook
-  CONNECTIVITY_TEST_FUNCTION_NAME: ha-nat-connectivity-tester
-  PRODUCTION_AWS_ACCOUNT: 802476504392
-  NONPROD_AWS_ACCOUNT: 676895163693
+on:
+  push:
+    branches-ignore:
+      - 'main'
+    tags:
+      - '*'
 
 jobs:
-  get_outputs:
+
+  run_tests:
+
     permissions:
-      id-token: write
       contents: read
+
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.set_outputs.outputs.image_tag_val }}
-      alias_name: ${{ steps.set_outputs.outputs.alias_name_val }}
-      account_id: ${{ steps.set_outputs.outputs.account_id_val }}
-      num_connectivity_tester_funcs: ${{ steps.set_outputs.outputs.num_funcs_val }}
+
+    env:
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+
     steps:
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          role-to-assume: arn:aws:iam::640342642087:role/github-ha-nat-lambda-update-function
-          aws-region: us-east-1
-      - id: set_outputs
+
+      - uses: actions/checkout@v3
+
+      - name: Run tests
         run: |
-          if [ "${{github.ref_name}}" == "main" ]; then
-            echo "::set-output name=image_tag_val::latest"
-            echo "::set-output name=alias_name_val::prod"
-            echo "::set-output name=account_id::$PRODUCTION_AWS_ACCOUNT"
-          else
-            # If branch has forward slashes, replace with hyphens
-            branch="${{github.ref_name}}"
-            normalized_branch="${branch//\//-}"
-            echo "::set-output name=image_tag_val::$normalized_branch"
-            echo "::set-output name=alias_name_val::$normalized_branch"
-            echo "::set-output name=account_id::$NONPROD_AWS_ACCOUNT"
-          fi
-          num_funcs=$(aws lambda list-functions --query 'Functions[].FunctionName' | grep -c "$CONNECTIVITY_TEST_FUNCTION_NAME")
-          echo "::set-output name=num_funcs_val::$num_funcs"
-  push_to_ecr:
+          pip install pip --upgrade
+          pip install pyopenssl --upgrade
+          pip install -r functions/replace-route/requirements.txt
+          pip install -r functions/replace-route/tests/test_requirements.txt
+          python -m pytest
+
+  build_and_push_image:
+
     permissions:
       id-token: write
       contents: read
+
     runs-on: ubuntu-latest
-    needs: get_outputs
+
+    needs: run_tests
+
     steps:
       - uses: actions/checkout@v3
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: arn:aws:iam::358789136651:role/github-ha-nat-lambda-push-ecr
-          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Set outputs
+        id: sha
+        run: echo "::set-output name=short_sha::$(git rev-parse --short HEAD)"
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
+
       - name: Build, tag, and push lambda image to Amazon ECR
         run: |
-          docker build . -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ needs.get_outputs.outputs.image_tag }}
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ needs.get_outputs.outputs.image_tag }}
-  update_lambda_function:
-    needs: [get_outputs, push_to_ecr]
-    permissions:
-      id-token: write
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          # TODO: Once ready for nonprod, update role to use ${{ needs.get_outputs.outputs.account_id }}
-          role-to-assume: arn:aws:iam::640342642087:role/github-ha-nat-lambda-update-function
-          aws-region: us-east-1
-      - name: Update Lambda Function Code
-        run: |
-          aws lambda update-function-code --function-name $AUTOSCALING_LIFECYCLE_FUNCTION_NAME --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:${{ needs.get_outputs.outputs.image_tag }}
-          for i in $(seq 0 $(expr "${{ needs.get_outputs.outputs.num_connectivity_tester_funcs }}" - 1)); do
-            aws lambda update-function-code --function-name "$CONNECTIVITY_TEST_FUNCTION_NAME-$i" --image-uri "$ECR_REGISTRY/$ECR_REPOSITORY:${{ needs.get_outputs.outputs.image_tag }}"
-          done
+          docker build . -t "${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ steps.sha.outputs.short_sha }}"
+          docker push "${{ secrets.ECR_REGISTRY}}/${{ secrets.ECR_REPOSITORY }}:${{ steps.sha.outputs.short_sha }}"

@@ -1,1 +1,3 @@
-functions/*/.aws-sam/
+**/.aws-sam/
+**/out.txt
+**/__pycache__

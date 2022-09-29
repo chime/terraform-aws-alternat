@@ -8,60 +8,59 @@ import requests
 
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 logging.getLogger('boto3').setLevel(logging.CRITICAL)
 logging.getLogger('botocore').setLevel(logging.CRITICAL)
 
-
-AUTOSCALING_FUNC_NAME = "ha-nat-autoscaling-hook"
-SCHEDULED_FUNC_NAME = "ha-nat-connectivity-tester"
-LIFECYCLE_KEY = "LifecycleHookName"
-ASG_KEY = "AutoScalingGroupName"
-EC2_KEY = "EC2InstanceId"
-autoscaling = boto3.client("autoscaling")
-ec2 = boto3.client("ec2")
-boto_lambda = boto3.client("lambda")
-
+ec2_client = boto3.client("ec2")
 
 def get_az_and_vpc_zone_identifier(auto_scaling_group):
+    autoscaling = boto3.client("autoscaling")
+
     try:
         asg_objects = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[auto_scaling_group])
     except botocore.exceptions.ClientError as error:
-        logger.error("Unable to get vpc zone identifier")
+        logger.error("Unable to describe autoscaling groups")
         raise error
 
     if asg_objects["AutoScalingGroups"] and len(asg_objects["AutoScalingGroups"]) > 0:
         asg = asg_objects["AutoScalingGroups"][0]
-        logger.info("ASG: %s", asg)
+        logger.debug("Auto Scaling Group: %s", asg)
+
         availability_zone = asg["AvailabilityZones"][0]
-        logger.info("AZ ZONE: %s", availability_zone)
+        logger.debug("Availability Zone: %s", availability_zone)
+
         vpc_zone_identifier = asg["VPCZoneIdentifier"]
-        logger.info("VPC_ZONE_IDENTIFIER: %s", vpc_zone_identifier)
+        logger.debug("VPC zone identifier: %s", vpc_zone_identifier)
+
         return availability_zone, vpc_zone_identifier
 
     raise MissingVPCZoneIdentifierError(asg_objects)
 
 def get_vpc_and_subnet_id(asg_az, vpc_zone_identifier):
     try:
-        subnets = ec2.describe_subnets(SubnetIds=[vpc_zone_identifier])
+        subnets = ec2_client.describe_subnets(SubnetIds=[vpc_zone_identifier])
 
     except botocore.exceptions.ClientError as error:
         logger.error("Unable to get vpc and subnet id")
         raise error
 
-    logger.info("SUBNETS: %s", subnets)
+    logger.debug("Subnets: %s", subnets)
+
     if subnets["Subnets"] and len(subnets["Subnets"]) > 0:
-        logger.info("ASG_SUBNETS LENGTH: %s", len(subnets["Subnets"]))
+        logger.debug("Number of subnets: %s", len(subnets["Subnets"]))
+
         subnet = subnets["Subnets"][0]
         public_subnet_id = subnet["SubnetId"]
-        logger.info("PUBLIC_SUBNET_ID: %s", public_subnet_id)
+        logger.debug("Public subnet ID: %s", public_subnet_id)
+
         vpc_id = subnet["VpcId"]
-        logger.info("VPC_ID: %s", vpc_id)
+        logger.debug("VPC ID: %s", vpc_id)
     else:
         raise MissingVPCandSubnetError(subnets)
 
     try:
-        az_subnets = ec2.describe_subnets(
+        az_subnets = ec2_client.describe_subnets(
             Filters = [
                 {
                     "Name": "availability-zone",
@@ -99,7 +98,7 @@ def get_vpc_and_subnet_id(asg_az, vpc_zone_identifier):
         logger.error("Unable to find the private subnet ID for %s! Cannot replace route.", asg_az)
         raise MissingAZSubnetError(az_subnets)
 
-    logger.info("PRIVATE_SUBNET_ID: %s", private_subnet_id)
+    logger.debug("Private subnet ID: %s", private_subnet_id)
     return vpc_id, private_subnet_id, public_subnet_id
 
 def get_vpc_and_subnets_from_lambda(function_name):
@@ -113,21 +112,18 @@ def get_vpc_and_subnets_from_lambda(function_name):
     - Return the VPC ID, private subnet ID of the Lambda, and public subnet ID of the NAT
     Gateway for use in replacing the route.
     """
+    boto_lambda = boto3.client("lambda")
     try:
         func = boto_lambda.get_function(FunctionName=function_name)
     except botocore.exceptions.ClientError as error:
         logger.error("Unable to get Lambda function")
         raise error
 
+    logger.info(func)
     vpc_config = func.get("Configuration").get("VpcConfig")
     if vpc_config == "":
         logger.error("Unable to read VpcConfig from function")
         raise MissingVpcConfigError(func.get("Configuration"))
-
-    vpc_id = vpc_config.get("VpcId")
-    if vpc_id == "":
-        logger.error("Could not get VpcId from Lambda VpcConfig")
-        raise MissingVpcConfigError(vpc_config)
 
     subnet_ids = vpc_config.get("SubnetIds")
     if len(subnet_ids) != 1:
@@ -136,7 +132,23 @@ def get_vpc_and_subnets_from_lambda(function_name):
     subnet_id = subnet_ids[0]
 
     try:
-        lambda_subnet = ec2.describe_subnets(
+        # Due to a limitation in how moto returns Lambda Vpc configuration, we cannot
+        # get vpc_id from the get_function() response above.
+        # See https://github.com/spulec/moto/blob/59910c812e3008506a5b8d7841d88e8bf4e4e153/moto/awslambda/models.py#L484
+        # Instead, make a second call to describe_subnets and filter on the subnet-id which is reliable.
+        vpc_id = ec2_client.describe_subnets(Filters = [
+            {
+                "Name": "subnet-id",
+                "Values": [
+                    subnet_id
+                ]
+            }
+        ]).get("Subnets")[0]["VpcId"]
+        if vpc_id == "":
+            logger.error("Could not discover VpcId from Lambda subnet")
+            raise MissingVpcConfigError(vpc_config)
+
+        lambda_subnet = ec2_client.describe_subnets(
             Filters = [
                 {
                     "Name": "subnet-id",
@@ -167,7 +179,7 @@ def get_vpc_and_subnets_from_lambda(function_name):
     lambda_subnet_id = lambda_subnets[0].get("SubnetId")
 
     try:
-        az_subnets = ec2.describe_subnets(
+        az_subnets = ec2_client.describe_subnets(
             Filters = [
                 {
                     "Name": "availability-zone",
@@ -205,12 +217,12 @@ def get_vpc_and_subnets_from_lambda(function_name):
         logger.error("Unable to find the public subnet ID for %s! Cannot replace route.", availability_zone)
         raise MissingAZSubnetError(az_subnets)
 
-    logger.info("Found subnet %s in VPC %s", public_subnet_id, vpc_id)
+    logger.debug("Found subnet %s in VPC %s", public_subnet_id, vpc_id)
     return vpc_id, public_subnet_id, lambda_subnet_id
 
 def get_nat_gateway_id(vpc_id, subnet_id):
     try:
-        nat_gateways = ec2.describe_nat_gateways(
+        nat_gateways = ec2_client.describe_nat_gateways(
             Filters=[
                 {
                     "Name": "vpc-id",
@@ -226,20 +238,21 @@ def get_nat_gateway_id(vpc_id, subnet_id):
         logger.error("Unable to describe nat gateway")
         raise error
 
-    logger.info("NAT GATEWAYS: %s", nat_gateways)
+    logger.debug("NAT Gateways: %s", nat_gateways)
     if len(nat_gateways.get("NatGateways")) < 1:
         raise MissingNatGatewayError(nat_gateways)
 
     nat_gateway_id = nat_gateways['NatGateways'][0]["NatGatewayId"]
-    logger.info("NAT_GATEWAY_ID %s", nat_gateway_id)
+    logger.debug("NAT Gateway ID: %s", nat_gateway_id)
     return nat_gateway_id
 
 def describe_and_replace_route(subnet_id, nat_gateway_id):
     try:
-        route_tables = ec2.describe_route_tables(
-            Filters=[{ "Name": "association.subnet-id",
-                        "Values": [subnet_id]
-                        }]
+        route_tables = ec2_client.describe_route_tables(
+            Filters=[{
+                "Name": "association.subnet-id",
+                "Values": [subnet_id]
+            }]
         )
     except botocore.exceptions.ClientError as error:
         logger.error("Unable to describe route tables")
@@ -249,20 +262,23 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
         raise MissingRouteTableError(route_tables)
 
     route_table = route_tables['RouteTables'][0]
-    logger.info("ROUTE_TABLE: %s", route_table)
 
     try:
-        ec2.replace_route(
+        logger.info("Replacing route for route table %s", route_table)
+        ec2_client.replace_route(
             DestinationCidrBlock="0.0.0.0/0",
             NatGatewayId=nat_gateway_id,
             RouteTableId=route_table["RouteTableId"],
         )
-        logger.info("SUCCESSFULLY REPLACED ROUTE!")
     except botocore.exceptions.ClientError as error:
         logger.error("Unable to replace route")
         raise error
 
-def handle_autoscaling_hook(event):
+def handler(event, context):
+    LIFECYCLE_KEY = "LifecycleHookName"
+    ASG_KEY = "AutoScalingGroupName"
+    EC2_KEY = "EC2InstanceId"
+
     try:
         for record in event["Records"]:
             message = json.loads(record["Sns"]["Message"])
@@ -270,95 +286,74 @@ def handle_autoscaling_hook(event):
                 life_cycle_hook = message[LIFECYCLE_KEY]
                 auto_scaling_group = message[ASG_KEY]
                 instance_id = message[EC2_KEY]
-                logger.info("LIFECYLE_HOOK: %s", life_cycle_hook)
-                logger.info("AUTO_SCALING_GROUP: %s", auto_scaling_group)
-                logger.info("INSANCE_ID: %s", instance_id)
+                logger.info("Handling Auto Scaling Group termination event for instance %s", instance_id)
+                logger.debug("Lifecycle Hook: %s", life_cycle_hook)
+                logger.debug("Auto Scaling Group: %s", auto_scaling_group)
+
                 availability_zone, vpc_zone_identifier = get_az_and_vpc_zone_identifier(auto_scaling_group)
                 vpc_id, private_subnet_id, public_subnet_id = get_vpc_and_subnet_id(availability_zone, vpc_zone_identifier)
                 nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
                 describe_and_replace_route(private_subnet_id, nat_gateway_id)
 
-                return {
-                    'statusCode': 200,
-                    'body': json.dumps("Route replace succeeded")
-                }
-            return {
-                'statusCode': 400,
-                'body': json.dumps(str("Failed to find lifecyle message to parse"))
-            }
-        return {
-            'statusCode': 400,
-            'body': json.dumps(str("Failed to find lifecyle message to parse"))
-        }
-    except Exception as error:
-        logging.error("Error: %s", error)
-        return {
-            'statusCode': 400,
-            'body': json.dumps(str(error))
-        }
+                logger.info("Route replacement succeeded")
+                return
 
-# handle_connection_test() tests connectivity by first trying an
-# http GET on example.com. If that fails, try again on
-# google.com. If that fails, replace the route to use NAT gateway.
-# If either call succeeds, connectivity is fine so just exit early.
-def handle_connection_test(event, context):
+        logger.error("Failed to find lifecyle message to parse")
+        raise LifecycleMessageError(route_tables)
+    except Exception as error:
+        logger.error("Error: %s", error)
+        raise error
+
+def connectivity_test_handler(event, context):
     if event.get("source") != "aws.events":
         logger.error("Unable to handle unknown event type: %s", json.dumps(event))
-        sys.exit(1)
+        raise UnknownEventTypeError
+
+    logger.info("Starting NAT instance connectivity test")
 
     try:
         requests.get("https://www.example.com", timeout=5)
+        logger.info("Successfully connected to www.example.com")
         return
     except requests.exceptions.RequestException as error:
-        logger.error("ha-nat-connectivity-test error connecting to example.com, trying google.com %s", error)
+        logger.error("ha-nat-connectivity-test error connecting to example.com: %s", error)
 
     try:
         requests.get("https://www.google.com", timeout=5)
+        logger.info("Successfully connected to www.google.com")
         return
     except requests.exceptions.RequestException as error:
-        logger.error("ha-nat-connectivity-test error connecting to google.com, replacing route! %s", error)
+        logger.error("ha-nat-connectivity-test error connecting to google.com: %s", error)
+
+    logger.warning("Failed connectivity tests! Replacing route")
 
     vpc_id, public_subnet_id, lambda_subnet_id = get_vpc_and_subnets_from_lambda(context.function_name)
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
     describe_and_replace_route(lambda_subnet_id, nat_gateway_id)
 
-def handler(event, context):
-    if context.function_name.startswith(AUTOSCALING_FUNC_NAME):
-        handle_autoscaling_hook(event)
-    elif context.function_name.startswith(SCHEDULED_FUNC_NAME):
-        handle_connection_test(event, context)
-    else:
-        logger.error("Unknown function invocation: %s", context.function_name)
-        raise UnknownFunctionInvocation(context.function_name)
+
+class UnknownEventTypeError(Exception): pass
 
 
-class UnknownFunctionInvocation(Exception):
-    pass
+class MissingVpcConfigError(Exception): pass
 
 
-class MissingVpcConfigError(Exception):
-    pass
+class MissingFunctionSubnetError(Exception): pass
 
 
-class MissingFunctionSubnetError(Exception):
-    pass
+class MissingAZSubnetError(Exception): pass
 
 
-class MissingAZSubnetError(Exception):
-    pass
+class MissingVPCZoneIdentifierError(Exception): pass
 
 
-class MissingVPCZoneIdentifierError(Exception):
-    pass
+class MissingVPCandSubnetError(Exception): pass
 
 
-class MissingVPCandSubnetError(Exception):
-    pass
+class MissingNatGatewayError(Exception): pass
 
 
-class MissingNatGatewayError(Exception):
-    pass
+class MissingRouteTableError(Exception): pass
 
 
-class MissingRouteTableError(Exception):
-    pass
+class LifecycleMessageError(Exception): pass
