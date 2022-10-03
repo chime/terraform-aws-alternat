@@ -8,7 +8,7 @@ brew tap aws/tap
 brew install aws-sam-cli
 ```
 
-```
+
 Build sam and invoke the functions
 ```
 sam build
