@@ -13,6 +13,7 @@ logging.getLogger('botocore').setLevel(logging.CRITICAL)
 
 ec2_client = boto3.client("ec2")
 
+
 def get_az_and_vpc_zone_identifier(auto_scaling_group):
     autoscaling = boto3.client("autoscaling")
 
@@ -35,6 +36,7 @@ def get_az_and_vpc_zone_identifier(auto_scaling_group):
         return availability_zone, vpc_zone_identifier
 
     raise MissingVPCZoneIdentifierError(asg_objects)
+
 
 def get_vpc_and_subnet_id(asg_az, vpc_zone_identifier):
     try:
@@ -99,6 +101,7 @@ def get_vpc_and_subnet_id(asg_az, vpc_zone_identifier):
 
     logger.debug("Private subnet ID: %s", private_subnet_id)
     return vpc_id, private_subnet_id, public_subnet_id
+
 
 def get_vpc_and_subnets_from_lambda(function_name):
     """
@@ -219,6 +222,7 @@ def get_vpc_and_subnets_from_lambda(function_name):
     logger.debug("Found subnet %s in VPC %s", public_subnet_id, vpc_id)
     return vpc_id, public_subnet_id, lambda_subnet_id
 
+
 def get_nat_gateway_id(vpc_id, subnet_id):
     try:
         nat_gateways = ec2_client.describe_nat_gateways(
@@ -244,6 +248,7 @@ def get_nat_gateway_id(vpc_id, subnet_id):
     nat_gateway_id = nat_gateways['NatGateways'][0]["NatGatewayId"]
     logger.debug("NAT Gateway ID: %s", nat_gateway_id)
     return nat_gateway_id
+
 
 def describe_and_replace_route(subnet_id, nat_gateway_id):
     try:
@@ -272,6 +277,7 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
     except botocore.exceptions.ClientError as error:
         logger.error("Unable to replace route")
         raise error
+
 
 def handler(event, context):
     LIFECYCLE_KEY = "LifecycleHookName"
@@ -302,6 +308,7 @@ def handler(event, context):
     except Exception as error:
         logger.error("Error: %s", error)
         raise error
+
 
 def connectivity_test_handler(event, context):
     if event.get("source") != "aws.events":
