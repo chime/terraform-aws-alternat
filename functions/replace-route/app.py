@@ -279,7 +279,7 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
         raise error
 
 
-def handler(event, context):
+def handler(event, context):  # Parameter `context` is not used
     LIFECYCLE_KEY = "LifecycleHookName"
     ASG_KEY = "AutoScalingGroupName"
     EC2_KEY = "EC2InstanceId"
@@ -304,7 +304,7 @@ def handler(event, context):
                 return
 
         logger.error("Failed to find lifecyle message to parse")
-        raise LifecycleMessageError(route_tables)
+        raise LifecycleMessageError(route_tables)  # unresolved reference `route_tables`
     except Exception as error:
         logger.error("Error: %s", error)
         raise error
