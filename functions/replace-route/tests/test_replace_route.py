@@ -5,8 +5,6 @@ import zipfile
 import io
 
 import boto3
-import pytest
-import sure
 import responses
 from requests import ConnectTimeout
 from moto import mock_autoscaling, mock_ec2, mock_iam, mock_lambda
