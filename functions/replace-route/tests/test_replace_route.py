@@ -117,8 +117,6 @@ def test_handler():
         },
     )
 
-    ec2 = boto3.resource("ec2", region_name=AWS_REGION)
-
     from app import handler
 
     script_dir = os.path.dirname(__file__)
@@ -162,8 +160,6 @@ def _process_lambda(func_str):
 @mock_ec2
 @responses.activate
 def test_connectivity_test_handler():
-    ec2 = boto3.resource("ec2", region_name=AWS_REGION)
-    ec2_client = boto3.client("ec2", region_name=AWS_REGION)
     lambda_function_name = "ha-nat-connectivity-test"
     mocked_networking = setup_networking()
 
