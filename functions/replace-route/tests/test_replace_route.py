@@ -181,7 +181,7 @@ def test_connectivity_test_handler():
         cloudwatch_event = file.read()
 
     class Context:
-        function_name=lambda_function_name
+        function_name = lambda_function_name
 
     responses.add(responses.GET, 'https://www.example.com', body=ConnectTimeout())
     responses.add(responses.GET, 'https://www.google.com', body=ConnectTimeout())
