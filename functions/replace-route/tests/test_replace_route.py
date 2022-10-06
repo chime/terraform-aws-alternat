@@ -1,3 +1,7 @@
+"""
+Run like this : `AWS_DEFAULT_REGION='us-east-1' pytest`
+"""
+
 import os
 import json
 import sys
