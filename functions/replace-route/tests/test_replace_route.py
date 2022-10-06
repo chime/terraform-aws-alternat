@@ -14,6 +14,7 @@ sys.path.append('..')
 EXAMPLE_AMI_ID = "ami-12c6146b"
 AWS_REGION = "us-east-1"
 
+
 @mock_ec2
 def setup_networking():
     az = f"{AWS_REGION}a"
@@ -74,6 +75,7 @@ def setup_networking():
         "sg": sg.id,
     }
 
+
 def verify_nat_gateway_route(mocked_networking):
     ec2_client = boto3.client("ec2", AWS_REGION)
 
@@ -87,6 +89,7 @@ def verify_nat_gateway_route(mocked_networking):
         if route["DestinationCidrBlock"] == "0.0.0.0/0":
             zero_route = route
     zero_route.should.have.key("NatGatewayId").equals(mocked_networking["nat_gw"])
+
 
 @mock_autoscaling
 @mock_ec2
@@ -122,6 +125,7 @@ def test_handler():
 
     verify_nat_gateway_route(mocked_networking)
 
+
 @mock_iam
 def get_role():
     iam = boto3.client("iam", region_name=AWS_REGION)
@@ -131,6 +135,7 @@ def get_role():
         Path="/my-path/",
     )["Role"]["Arn"]
 
+
 def get_test_zip_file1():
     pfunc = """
     def lambda_handler(event, context):
@@ -139,6 +144,7 @@ def get_test_zip_file1():
     """
     return _process_lambda(pfunc)
 
+
 def _process_lambda(func_str):
     zip_output = io.BytesIO()
     zip_file = zipfile.ZipFile(zip_output, "w", zipfile.ZIP_DEFLATED)
@@ -146,6 +152,7 @@ def _process_lambda(func_str):
     zip_file.close()
     zip_output.seek(0)
     return zip_output.read()
+
 
 @mock_lambda
 @mock_ec2
