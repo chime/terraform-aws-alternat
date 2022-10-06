@@ -280,8 +280,8 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
 
 
 def handler(event, context):  # Parameter `context` is not used
-    LIFECYCLE_KEY = "LifecycleHookName"
-    ASG_KEY = "AutoScalingGroupName"
+    LIFECYCLE_KEY = "LifecycleHookName"  # Constants are generally declared at the top of the file
+    ASG_KEY = "AutoScalingGroupName"  # https://peps.python.org/pep-0008/#constants
     EC2_KEY = "EC2InstanceId"
 
     try:
