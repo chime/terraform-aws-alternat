@@ -138,7 +138,7 @@ def get_vpc_and_subnets_from_lambda(function_name):
         # get vpc_id from the get_function() response above.
         # See https://github.com/spulec/moto/blob/59910c812e3008506a5b8d7841d88e8bf4e4e153/moto/awslambda/models.py#L484
         # Instead, make a second call to describe_subnets and filter on the subnet-id which is reliable.
-        vpc_id = ec2_client.describe_subnets(Filters = [
+        vpc_id = ec2_client.describe_subnets(Filters=[
             {
                 "Name": "subnet-id",
                 "Values": [
@@ -151,7 +151,7 @@ def get_vpc_and_subnets_from_lambda(function_name):
             raise MissingVpcConfigError(vpc_config)
 
         lambda_subnet = ec2_client.describe_subnets(
-            Filters = [
+            Filters=[
                 {
                     "Name": "subnet-id",
                     "Values": [
@@ -182,7 +182,7 @@ def get_vpc_and_subnets_from_lambda(function_name):
 
     try:
         az_subnets = ec2_client.describe_subnets(
-            Filters = [
+            Filters=[
                 {
                     "Name": "availability-zone",
                     "Values": [
