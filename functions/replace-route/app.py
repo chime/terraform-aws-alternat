@@ -270,13 +270,12 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
 
     route_table = route_tables['RouteTables'][0]
 
+    new_route_table = {"DestinationCidrBlock": "0.0.0.0/0",
+                       "NatGatewayId": nat_gateway_id,
+                       "RouteTableId": route_table["RouteTableId"]}
     try:
-        logger.info("Replacing route for route table %s", route_table)
-        ec2_client.replace_route(
-            DestinationCidrBlock="0.0.0.0/0",
-            NatGatewayId=nat_gateway_id,
-            RouteTableId=route_table["RouteTableId"],
-        )
+        logger.info("Replacing existing route %s for route table %s", route_table, new_route_table)
+        ec2_client.replace_route(**new_route_table)
     except botocore.exceptions.ClientError as error:
         logger.error("Unable to replace route")
         raise error
@@ -304,7 +303,7 @@ def handler(event, context):  # Parameter `context` is not used
                 return
 
         logger.error("Failed to find lifecyle message to parse")
-        raise LifecycleMessageError(route_tables)  # unresolved reference `route_tables`
+        raise LifecycleMessageError
     except Exception as error:
         logger.error("Error: %s", error)
         raise error
