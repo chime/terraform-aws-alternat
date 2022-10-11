@@ -17,6 +17,7 @@ LIFECYCLE_KEY = "LifecycleHookName"
 ASG_KEY = "AutoScalingGroupName"
 EC2_KEY = "EC2InstanceId"
 
+
 def get_az_and_vpc_zone_identifier(auto_scaling_group):
     autoscaling = boto3.client("autoscaling")
 
