@@ -282,7 +282,7 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
         raise error
 
 
-def handler(event, context):  # Parameter `context` is not used
+def handler(event):
 
     try:
         for record in event["Records"]:
