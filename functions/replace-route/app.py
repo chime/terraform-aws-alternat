@@ -1,6 +1,5 @@
 import json
 import logging
-import sys
 
 import botocore
 import boto3
@@ -13,6 +12,11 @@ logging.getLogger('boto3').setLevel(logging.CRITICAL)
 logging.getLogger('botocore').setLevel(logging.CRITICAL)
 
 ec2_client = boto3.client("ec2")
+
+LIFECYCLE_KEY = "LifecycleHookName"
+ASG_KEY = "AutoScalingGroupName"
+EC2_KEY = "EC2InstanceId"
+
 
 def get_az_and_vpc_zone_identifier(auto_scaling_group):
     autoscaling = boto3.client("autoscaling")
@@ -36,6 +40,7 @@ def get_az_and_vpc_zone_identifier(auto_scaling_group):
         return availability_zone, vpc_zone_identifier
 
     raise MissingVPCZoneIdentifierError(asg_objects)
+
 
 def get_vpc_and_subnet_id(asg_az, vpc_zone_identifier):
     try:
@@ -101,6 +106,7 @@ def get_vpc_and_subnet_id(asg_az, vpc_zone_identifier):
     logger.debug("Private subnet ID: %s", private_subnet_id)
     return vpc_id, private_subnet_id, public_subnet_id
 
+
 def get_vpc_and_subnets_from_lambda(function_name):
     """
     This function operates as follows:
@@ -136,7 +142,7 @@ def get_vpc_and_subnets_from_lambda(function_name):
         # get vpc_id from the get_function() response above.
         # See https://github.com/spulec/moto/blob/59910c812e3008506a5b8d7841d88e8bf4e4e153/moto/awslambda/models.py#L484
         # Instead, make a second call to describe_subnets and filter on the subnet-id which is reliable.
-        vpc_id = ec2_client.describe_subnets(Filters = [
+        vpc_id = ec2_client.describe_subnets(Filters=[
             {
                 "Name": "subnet-id",
                 "Values": [
@@ -149,7 +155,7 @@ def get_vpc_and_subnets_from_lambda(function_name):
             raise MissingVpcConfigError(vpc_config)
 
         lambda_subnet = ec2_client.describe_subnets(
-            Filters = [
+            Filters=[
                 {
                     "Name": "subnet-id",
                     "Values": [
@@ -180,7 +186,7 @@ def get_vpc_and_subnets_from_lambda(function_name):
 
     try:
         az_subnets = ec2_client.describe_subnets(
-            Filters = [
+            Filters=[
                 {
                     "Name": "availability-zone",
                     "Values": [
@@ -220,6 +226,7 @@ def get_vpc_and_subnets_from_lambda(function_name):
     logger.debug("Found subnet %s in VPC %s", public_subnet_id, vpc_id)
     return vpc_id, public_subnet_id, lambda_subnet_id
 
+
 def get_nat_gateway_id(vpc_id, subnet_id):
     try:
         nat_gateways = ec2_client.describe_nat_gateways(
@@ -246,6 +253,7 @@ def get_nat_gateway_id(vpc_id, subnet_id):
     logger.debug("NAT Gateway ID: %s", nat_gateway_id)
     return nat_gateway_id
 
+
 def describe_and_replace_route(subnet_id, nat_gateway_id):
     try:
         route_tables = ec2_client.describe_route_tables(
@@ -263,21 +271,18 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
 
     route_table = route_tables['RouteTables'][0]
 
+    new_route_table = {"DestinationCidrBlock": "0.0.0.0/0",
+                       "NatGatewayId": nat_gateway_id,
+                       "RouteTableId": route_table["RouteTableId"]}
     try:
-        logger.info("Replacing route for route table %s", route_table)
-        ec2_client.replace_route(
-            DestinationCidrBlock="0.0.0.0/0",
-            NatGatewayId=nat_gateway_id,
-            RouteTableId=route_table["RouteTableId"],
-        )
+        logger.info("Replacing existing route %s for route table %s", route_table, new_route_table)
+        ec2_client.replace_route(**new_route_table)
     except botocore.exceptions.ClientError as error:
         logger.error("Unable to replace route")
         raise error
 
-def handler(event, context):
-    LIFECYCLE_KEY = "LifecycleHookName"
-    ASG_KEY = "AutoScalingGroupName"
-    EC2_KEY = "EC2InstanceId"
+
+def handler(event):
 
     try:
         for record in event["Records"]:
@@ -299,10 +304,11 @@ def handler(event, context):
                 return
 
         logger.error("Failed to find lifecyle message to parse")
-        raise LifecycleMessageError(route_tables)
+        raise LifecycleMessageError
     except Exception as error:
         logger.error("Error: %s", error)
         raise error
+
 
 def connectivity_test_handler(event, context):
     if event.get("source") != "aws.events":

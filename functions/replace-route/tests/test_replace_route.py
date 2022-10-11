@@ -1,3 +1,7 @@
+"""
+Run like this : `AWS_DEFAULT_REGION='us-east-1' pytest`
+"""
+
 import os
 import json
 import sys
@@ -5,7 +9,6 @@ import zipfile
 import io
 
 import boto3
-import pytest
 import sure
 import responses
 from requests import ConnectTimeout
@@ -14,12 +17,12 @@ from moto import mock_autoscaling, mock_ec2, mock_iam, mock_lambda
 sys.path.append('..')
 
 EXAMPLE_AMI_ID = "ami-12c6146b"
-AWS_REGION = "us-east-1"
+
 
 @mock_ec2
 def setup_networking():
-    az = f"{AWS_REGION}a"
-    ec2 = boto3.resource("ec2", region_name=AWS_REGION)
+    az = f"{os.environ['AWS_DEFAULT_REGION']}a"
+    ec2 = boto3.resource("ec2")
 
     vpc = ec2.create_vpc(CidrBlock="10.1.0.0/16")
 
@@ -47,7 +50,7 @@ def setup_networking():
     sg = ec2.create_security_group(GroupName="test-sg", Description="test-sg")
 
 
-    ec2_client = boto3.client("ec2", AWS_REGION)
+    ec2_client = boto3.client("ec2")
     allocation_id = ec2_client.allocate_address(Domain="vpc")["AllocationId"]
     nat_gw_id = ec2_client.create_nat_gateway(
         SubnetId=subnet1.id,
@@ -76,8 +79,9 @@ def setup_networking():
         "sg": sg.id,
     }
 
+
 def verify_nat_gateway_route(mocked_networking):
-    ec2_client = boto3.client("ec2", AWS_REGION)
+    ec2_client = boto3.client("ec2")
 
     filters = [{"Name": "route-table-id", "Values": [mocked_networking["route_table"]]}]
     route_tables = ec2_client.describe_route_tables(Filters=filters)["RouteTables"]
@@ -90,17 +94,18 @@ def verify_nat_gateway_route(mocked_networking):
             zero_route = route
     zero_route.should.have.key("NatGatewayId").equals(mocked_networking["nat_gw"])
 
+
 @mock_autoscaling
 @mock_ec2
 def test_handler():
     mocked_networking = setup_networking()
-    ec2_client = boto3.client("ec2", region_name=AWS_REGION)
+    ec2_client = boto3.client("ec2")
     template = ec2_client.create_launch_template(
         LaunchTemplateName="test_launch_template",
         LaunchTemplateData={"ImageId": EXAMPLE_AMI_ID, "InstanceType": "t2.micro"},
     )["LaunchTemplate"]
 
-    autoscaling_client = boto3.client("autoscaling", AWS_REGION)
+    autoscaling_client = boto3.client("autoscaling")
     autoscaling_client.create_auto_scaling_group(
         AutoScalingGroupName="ha-nat-asg",
         VPCZoneIdentifier=mocked_networking["subnet1"],
@@ -112,26 +117,26 @@ def test_handler():
         },
     )
 
-    ec2 = boto3.resource("ec2", region_name=AWS_REGION)
-
     from app import handler
 
     script_dir = os.path.dirname(__file__)
     with open(os.path.join(script_dir, "../sns-event.json"), "r") as file:
         asg_termination_event = file.read()
 
-    handler(event=json.loads(asg_termination_event), context={})
+    handler(event=json.loads(asg_termination_event))
 
     verify_nat_gateway_route(mocked_networking)
 
+
 @mock_iam
 def get_role():
-    iam = boto3.client("iam", region_name=AWS_REGION)
+    iam = boto3.client("iam")
     return iam.create_role(
         RoleName="my-role",
         AssumeRolePolicyDocument="some policy",
         Path="/my-path/",
     )["Role"]["Arn"]
+
 
 def get_test_zip_file1():
     pfunc = """
@@ -141,6 +146,7 @@ def get_test_zip_file1():
     """
     return _process_lambda(pfunc)
 
+
 def _process_lambda(func_str):
     zip_output = io.BytesIO()
     zip_file = zipfile.ZipFile(zip_output, "w", zipfile.ZIP_DEFLATED)
@@ -149,16 +155,15 @@ def _process_lambda(func_str):
     zip_output.seek(0)
     return zip_output.read()
 
+
 @mock_lambda
 @mock_ec2
 @responses.activate
 def test_connectivity_test_handler():
-    ec2 = boto3.resource("ec2", region_name=AWS_REGION)
-    ec2_client = boto3.client("ec2", region_name=AWS_REGION)
     lambda_function_name = "ha-nat-connectivity-test"
     mocked_networking = setup_networking()
 
-    lambda_client = boto3.client("lambda", AWS_REGION)
+    lambda_client = boto3.client("lambda")
     lambda_client.create_function(
         FunctionName=lambda_function_name,
         Runtime="python3.7",
@@ -175,7 +180,7 @@ def test_connectivity_test_handler():
         cloudwatch_event = file.read()
 
     class Context:
-        function_name=lambda_function_name
+        function_name = lambda_function_name
 
     responses.add(responses.GET, 'https://www.example.com', body=ConnectTimeout())
     responses.add(responses.GET, 'https://www.google.com', body=ConnectTimeout())
