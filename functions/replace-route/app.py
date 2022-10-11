@@ -13,6 +13,9 @@ logging.getLogger('botocore').setLevel(logging.CRITICAL)
 
 ec2_client = boto3.client("ec2")
 
+LIFECYCLE_KEY = "LifecycleHookName"
+ASG_KEY = "AutoScalingGroupName"
+EC2_KEY = "EC2InstanceId"
 
 def get_az_and_vpc_zone_identifier(auto_scaling_group):
     autoscaling = boto3.client("autoscaling")
@@ -280,9 +283,6 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
 
 
 def handler(event, context):  # Parameter `context` is not used
-    LIFECYCLE_KEY = "LifecycleHookName"  # Constants are generally declared at the top of the file
-    ASG_KEY = "AutoScalingGroupName"  # https://peps.python.org/pep-0008/#constants
-    EC2_KEY = "EC2InstanceId"
 
     try:
         for record in event["Records"]:
