@@ -123,7 +123,7 @@ def test_handler():
     with open(os.path.join(script_dir, "../sns-event.json"), "r") as file:
         asg_termination_event = file.read()
 
-    handler(event=json.loads(asg_termination_event))
+    handler(json.loads(asg_termination_event), {})
 
     verify_nat_gateway_route(mocked_networking)
 
