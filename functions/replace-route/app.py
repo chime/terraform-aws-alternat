@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 
@@ -16,6 +17,7 @@ ec2_client = boto3.client("ec2")
 LIFECYCLE_KEY = "LifecycleHookName"
 ASG_KEY = "AutoScalingGroupName"
 EC2_KEY = "EC2InstanceId"
+DEFAULT_SUBNET_SUFFIX = "private"
 
 
 def get_az_and_vpc_zone_identifier(auto_scaling_group):
@@ -42,7 +44,7 @@ def get_az_and_vpc_zone_identifier(auto_scaling_group):
     raise MissingVPCZoneIdentifierError(asg_objects)
 
 
-def get_vpc_and_subnet_id(asg_az, vpc_zone_identifier):
+def get_vpc_and_subnet_id(subnet_suffix, asg_az, vpc_zone_identifier):
     try:
         subnets = ec2_client.describe_subnets(SubnetIds=[vpc_zone_identifier])
 
@@ -95,7 +97,7 @@ def get_vpc_and_subnet_id(asg_az, vpc_zone_identifier):
         for tag in tags:
             if tag.get("Key") == "Name":
                 subnet_name = tag.get("Value")
-                if f"private-{asg_az}" in subnet_name:
+                if f"{subnet_suffix}-{asg_az}" in subnet_name:
                     private_subnet_id = subnet.get("SubnetId")
                     break
 
@@ -283,6 +285,7 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
 
 
 def handler(event, _):
+    subnet_suffix = os.getenv("PRIVATE_SUBNET_SUFFIX", DEFAULT_SUBNET_SUFFIX)
 
     try:
         for record in event["Records"]:
@@ -296,7 +299,7 @@ def handler(event, _):
                 logger.debug("Auto Scaling Group: %s", auto_scaling_group)
 
                 availability_zone, vpc_zone_identifier = get_az_and_vpc_zone_identifier(auto_scaling_group)
-                vpc_id, private_subnet_id, public_subnet_id = get_vpc_and_subnet_id(availability_zone, vpc_zone_identifier)
+                vpc_id, private_subnet_id, public_subnet_id = get_vpc_and_subnet_id(subnet_suffix, availability_zone, vpc_zone_identifier)
                 nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
                 describe_and_replace_route(private_subnet_id, nat_gateway_id)
 
