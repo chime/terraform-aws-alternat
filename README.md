@@ -53,7 +53,14 @@ Both are deployed by the Terraform module located in [`modules/terraform-aws-ha-
 
 The solution deploys an Auto Scaling Group (ASG) for each provided public subnet. Each ASG contains a single instance. When the instance boots, the [user data](`modules/terraform-aws-ha-nat/ha-nat.sh.tftpl`) initializes the instance to do the NAT stuff.
 
-By default, the ASGs are configured with a [maximum instance lifetime](https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-max-instance-lifetime.html). This is to facilitate periodic replacement of the instance to automate patching. When the maximum instance lifetime is reached (14 days by default), the instance is terminated by the Auto Scaling service. A [`Terminating:Wait` lifecycle hook](https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html) fires, notifying the replace-route function to update the route table of the corresponding private subnet to instead route through a standby NAT Gateway. When the new instance boots, its user data automatically reclaims the Elastic IP address and updates the route table to route through itself.
+By default, the ASGs are configured with a [maximum instance lifetime](https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-max-instance-lifetime.html). This is to facilitate periodic replacement of the instance to automate patching. When the maximum instance lifetime is reached (14 days by default), the following occurs:
+
+1. The instance is terminated by the Auto Scaling service.
+1. A [`Terminating:Wait` lifecycle hook](https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html) fires to an SNS topic.
+1. The replace-route function updates the route table of the corresponding private subnet to instead route through a standby NAT Gateway.
+1. When the new instance boots, its user data automatically reclaims the Elastic IP address and updates the route table to route through itself.
+
+The standby NAT Gateway is a safety measure. It is only used if the NAT instance is actively being replaced, either due to the maximum instance lifetime or due to some other failure scenario.
 
 ### replace-route Lambda Function
 
@@ -67,6 +74,8 @@ When a NAT instance in any of the zonal ASGs is terminated, the lifecycle hook p
 The replace-route function also acts as a health check. In the private subnet of each availability zone, every minute, the function checks that connectivity to the Internet works by requesting https://www.example.com (and, if that fails, https://www.google.com). If the request succeeds, the function exits. If both requests fail, the NAT instance is presumably borked, and the function updates the route to point at the standby NAT gateway.
 
 In the event that a NAT instance is unavailable, the function would have no route to the AWS EC2 and Lambda APIs to perform the necessary steps to update the route table. This is mitigated by the use of [interface VPC endpoints](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/interface-vpc-endpoints.html) to EC2 and Lambda.
+
+> **_NOTE:_** When a route replacement occurs, all active NAT connections will be disconnected and will need to be reestablished. For example, when the NAT instance max lifetime is reached, the connections will be terminated and reestablished through the NAT Gateway after replace-route has fired. When the new instances comes online and reclaims the route, the connections will again be closed. Clients will need to reopen connections.
 
 ## Usage and Considerations
 
@@ -92,15 +101,18 @@ Start by reviewing the available [input variables](modules/terraform-aws-ha-nat/
 
 A few comments on the inputs:
 
-- We recommend using a network optimized instance type, such as the `c5gn.8xlarge` which offers 50Gbps guaranteed bandwidth. It's wise to start by overprovisioning, observing patterns, and resizing if necessary. Don't be surprised by the "up to NGbps" language explained in [the AWS EC2 docs](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-network-bandwidth.html) thusly:
+- We recommend using a network optimized instance type, such as the `c5gn.8xlarge` which offers 50Gbps guaranteed bandwidth. It's wise to start by overprovisioning, observing patterns, and resizing if necessary. Don't be surprised by the network I/O credit mechanism explained in [the AWS EC2 docs](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-network-bandwidth.html) thusly:
 
 > Typically, instances with 16 vCPUs or fewer (size 4xlarge and smaller) are documented as having "up to" a specified bandwidth; for example, "up to 10 Gbps". These instances have a baseline bandwidth. To meet additional demand, they can use a network I/O credit mechanism to burst beyond their baseline bandwidth. Instances can use burst bandwidth for a limited time, typically from 5 to 60 minutes, depending on the instance size.
 
-- The code is currently constrained to a 1:1 relationship of public subnets to private subnets. Each provided public subnet should correspond to a private subnet in the same zone.
+- The code is currently constrained to a 1:1 relationship of public subnets to private subnets. Each provided public subnet should correspond to a single private subnet in the same zone.
 
 - The `subnet_suffix` is used to match the name of the private subnet and subsequently update the corresponding route table. The suffix of the private subnet names must match `<subnet suffix>-<availability zone>`. For example, `my-foo-vpc-private-us-east-1a`. This is the default used by the [terraform-aws-vpc module](https://github.com/terraform-aws-modules/terraform-aws-vpc/blob/6a3a9bde634e2147205273337b1c22e4d94ad6ff/main.tf#L402).
 
 - [SSM Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html) is enabled by default. To view NAT connections on an instance, use sessions manager to connect, then run `sudo cat /proc/net/nf_conntrack`. Disable SSM by setting `enable_ssm=false`.
+
+- We intentionally use `most_recent=true` for the Amazon Linux 2 AMI. This helps to ensure that the latest AMI is used in the ASG launch template. If a new AMI is available when you run `terraform apply`, the launch template will be updated with the latest AMI. The new AMI will be launched automatically when the maximum instance lifetime is reached.
+
 
 ## Contributing
 
