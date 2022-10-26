@@ -64,7 +64,7 @@ The standby NAT Gateway is a safety measure. It is only used if the NAT instance
 
 ### replace-route Lambda Function
 
-The purpose of [the replace-route Lambda Function](`functions/replace-route/app.py`) is to update the route table of the private subnets to route through the standby NAT gateway. It does this in response to two events:
+The purpose of [the replace-route Lambda Function](functions/replace-route) is to update the route table of the private subnets to route through the standby NAT gateway. It does this in response to two events:
 
 1. By the lifecycle hook (via SNS topic) when the ASG terminates a NAT instance (such as when the max instance lifetime is reached), and
 1. by a CloudWatch Event rule, once per minute for every private subnet.
