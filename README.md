@@ -71,7 +71,7 @@ The purpose of [the replace-route Lambda Function](functions/replace-route) is t
 
 When a NAT instance in any of the zonal ASGs is terminated, the lifecycle hook publishes an event to an SNS topic to which the Lambda function is subscribed. The Lambda then performs the necessary steps to identify which zone is affected and updates the respective private route table to point at its standby NAT gateway.
 
-The replace-route function also acts as a health check. In the private subnet of each availability zone, every minute, the function checks that connectivity to the Internet works by requesting https://www.example.com (and, if that fails, https://www.google.com). If the request succeeds, the function exits. If both requests fail, the NAT instance is presumably borked, and the function updates the route to point at the standby NAT gateway.
+The replace-route function also acts as a health check. Every minute, in the private subnet of each availability zone, the function checks that connectivity to the Internet works by requesting https://www.example.com and, if that fails, https://www.google.com. If the request succeeds, the function exits. If both requests fail, the NAT instance is presumably borked, and the function updates the route to point at the standby NAT gateway.
 
 In the event that a NAT instance is unavailable, the function would have no route to the AWS EC2 and Lambda APIs to perform the necessary steps to update the route table. This is mitigated by the use of [interface VPC endpoints](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/interface-vpc-endpoints.html) to EC2 and Lambda.
 
@@ -97,9 +97,32 @@ docker push <your_registry_url>/<your_repo:<release tag or short git commit sha>
 
 ### Use the Terraform module
 
-Start by reviewing the available [input variables](modules/terraform-aws-ha-nat/variables.tf). Feel free to submit a pull request or create an issue if you need an input or output that isn't available.
+Start by reviewing the available [input variables](modules/terraform-aws-ha-nat/variables.tf). Example usage:
 
-A few comments on the inputs:
+```
+module "ha_nat_instances" {
+  source = "1debit/ha-nat//modules/terraform-aws-ha-nat?ref=v0.1.0"
+
+  ha_nat_image_uri = "0123456789012.dkr.ecr.us-east-1.amazonaws.com/ha-nat-functions-lambda"
+  ha_nat_image_tag = "v0.1.0"
+
+  ingress_security_group_ids = var.ingress_security_group_ids
+
+  subnet_suffix = var.nat_subnet_suffix
+
+  private_route_table_ids = module.vpc.private_route_table_ids
+
+  tags = var.tags
+
+  vpc_id                 = module.vpc.vpc_id
+  vpc_private_subnet_ids = module.vpc.private_subnets
+  vpc_public_subnet_ids  = module.vpc.public_subnets
+}
+```
+
+Feel free to submit a pull request or create an issue if you need an input or output that isn't available.
+
+### Other considerations
 
 - We recommend using a network optimized instance type, such as the `c5gn.8xlarge` which offers 50Gbps guaranteed bandwidth. It's wise to start by overprovisioning, observing patterns, and resizing if necessary. Don't be surprised by the network I/O credit mechanism explained in [the AWS EC2 docs](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-network-bandwidth.html) thusly:
 
@@ -112,6 +135,8 @@ A few comments on the inputs:
 - [SSM Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html) is enabled by default. To view NAT connections on an instance, use sessions manager to connect, then run `sudo cat /proc/net/nf_conntrack`. Disable SSM by setting `enable_ssm=false`.
 
 - We intentionally use `most_recent=true` for the Amazon Linux 2 AMI. This helps to ensure that the latest AMI is used in the ASG launch template. If a new AMI is available when you run `terraform apply`, the launch template will be updated with the latest AMI. The new AMI will be launched automatically when the maximum instance lifetime is reached.
+
+- Most of the time, except when the instance is actively being replaces, NAT traffic should be routed through the NAT instance and NOT through the NAT Gateway. You should monitor your logs for the text "Failed connectivity tests! Replacing route" and alert when this occurs as you may need to manually intervene to resolve a problem with the NAT instances.
 
 
 ## Contributing
