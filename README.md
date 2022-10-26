@@ -51,7 +51,7 @@ Both are deployed by the Terraform module located in [`modules/terraform-aws-ha-
 
 ### NAT instance Auto Scaling Group and standby NAT Gateway
 
-The solution deploys an Auto Scaling Group (ASG) for each provided public subnet. Each ASG contains a single instance. When the instance boots, the [user data](`modules/terraform-aws-ha-nat/ha-nat.sh.tftpl`) initializes the instance to do the NAT stuff.
+The solution deploys an Auto Scaling Group (ASG) for each provided public subnet. Each ASG contains a single instance. When the instance boots, the [user data](modules/terraform-aws-ha-nat/ha-nat.sh.tftpl) initializes the instance to do the NAT stuff.
 
 By default, the ASGs are configured with a [maximum instance lifetime](https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-max-instance-lifetime.html). This is to facilitate periodic replacement of the instance to automate patching. When the maximum instance lifetime is reached (14 days by default), the following occurs:
 
