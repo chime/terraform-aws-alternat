@@ -86,9 +86,11 @@ resource "aws_autoscaling_group" "nat_instance" {
   }
 
   dynamic "tag" {
-    for_each = merge(var.tags, {
-      Name = "ha-nat-${count.index}"
-    })
+    for_each = merge(
+      var.tags,
+      { Name = "ha-nat-${count.index}" },
+      data.aws_default_tags.current.tags,
+    )
 
     content {
       key                 = tag.key
@@ -398,3 +400,5 @@ module "vpc_endpoints" {
   endpoints          = local.endpoints
   tags               = var.tags
 }
+
+data "aws_default_tags" "current" {}
