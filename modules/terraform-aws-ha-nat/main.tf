@@ -274,11 +274,6 @@ resource "aws_iam_role_policy_attachment" "ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-moved {
-  from = aws_iam_role_policy_attachment.ssm
-  to   = aws_iam_role_policy_attachment.ssm[0]
-}
-
 data "aws_iam_policy_document" "ha_nat_ec2_policy" {
   statement {
     sid    = "HANATInstancePermissions"
@@ -345,11 +340,6 @@ resource "aws_iam_role_policy" "ha_nat_additional_policies" {
   role   = aws_iam_role.ha_nat_instance.name
 }
 
-moved {
-  from = aws_iam_role_policy.inspector_ssm_policy
-  to   = aws_iam_role_policy.ha_nat_additional_policies[0]
-}
-
 ## NAT Gateway used as a backup route
 resource "aws_eip" "nat_gateway_eips" {
   count = length(var.vpc_public_subnet_ids)
@@ -398,11 +388,6 @@ resource "aws_security_group" "vpc_endpoint" {
   tags = var.tags
 }
 
-moved {
-  from = aws_security_group.vpc_endpoint
-  to   = aws_security_group.vpc_endpoint[0]
-}
-
 module "vpc_endpoints" {
   count = length(local.endpoints) > 0 ? 1 : 0
 
@@ -412,9 +397,4 @@ module "vpc_endpoints" {
   security_group_ids = [aws_security_group.vpc_endpoint[0].id]
   endpoints          = local.endpoints
   tags               = var.tags
-}
-
-moved {
-  from = module.vpc_endpoints
-  to   = module.vpc_endpoints[0]
 }

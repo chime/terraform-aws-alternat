@@ -75,7 +75,7 @@ The replace-route function also acts as a health check. Every minute, in the pri
 
 In the event that a NAT instance is unavailable, the function would have no route to the AWS EC2 and Lambda APIs to perform the necessary steps to update the route table. This is mitigated by the use of [interface VPC endpoints](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/interface-vpc-endpoints.html) to EC2 and Lambda.
 
-> **_NOTE:_** When a route replacement occurs, all active NAT connections will be disconnected and will need to be reestablished. For example, when the NAT instance max lifetime is reached, the connections will be terminated and reestablished through the NAT Gateway after replace-route has fired. When the new instances comes online and reclaims the route, the connections will again be closed. Clients will need to reopen connections.
+> **_IMPORTANT:_** When a route replacement occurs, all active TCP connections will be forcefully disconnected. For example, when the NAT instance max lifetime is reached, the connections will be terminated and reestablished through the NAT Gateway after replace-route has fired. When the new instances comes online and reclaims the route, the connections will again be closed. Well behaved clients should automatically reconnect. However, some clients may not. Unfortunately, there is no way around this. With that said, a disconnected TCP session is always possible on the Internet, so it is advisable to fix clients that exhibit this behavior.
 
 ## Usage and Considerations
 
