@@ -1,0 +1,3 @@
+**/.aws-sam/
+**/out.txt
+**/__pycache__

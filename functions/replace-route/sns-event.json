@@ -1,0 +1,17 @@
+{
+    "Records": [
+        {
+            "EventSource": "aws:sns",
+            "EventVersion": "1.0",
+            "EventSubscriptionArn": "arn:aws:sns:us-east-1:123456789012:alternat-topic20220825201854040700000002:ca6bfdb1-b0ec-4392-8bba-e2265586770d",
+            "Sns": {
+                "Type": "Notification",
+                "TopicArn": "arn:aws:sns:us-east-1:0123456789012:alternat-topic20220825201854040700000002",
+                "Subject": "Auto Scaling:  Lifecycle action 'TERMINATING' for instance i-0ce69e1a05d46bb3c in progress.",
+                "Message": "{\"Origin\":\"AutoScalingGroup\",\"LifecycleHookName\":\"NATInstanceTerminationLifeCycleHook\",\"Destination\":\"EC2\",\"AccountId\":\"0123456789012\",\"RequestId\":\"99660bc1-e85f-69cf-3905-c9a7390dcd5e\",\"LifecycleTransition\":\"autoscaling:EC2_INSTANCE_TERMINATING\",\"AutoScalingGroupName\":\"alternat-asg\",\"Service\":\"AWS Auto Scaling\",\"Time\":\"2022-08-30T20:38:31.798Z\",\"EC2InstanceId\":\"i-0ce69e1a05d46bb3c\",\"NotificationMetadata\":\"{\\\"goodbye\\\":\\\"world\\\"}\",\"LifecycleActionToken\":\"9852eafb-6c45-43f8-917c-9353bf43d286\"}",
+                "Timestamp": "2022-08-30T20:38:31.829Z",
+                "MessageAttributes": {}
+            }
+        }
+    ]
+}
