@@ -60,7 +60,7 @@ resource "aws_sns_topic" "ha_nat_topic" {
 resource "aws_autoscaling_group" "nat_instance" {
   count = length(var.vpc_public_subnet_ids)
 
-  name_prefix           = "ha-nat-"
+  name_prefix           = var.nat_instance_name_prefix
   max_size              = 1
   min_size              = 1
   desired_capacity      = 1
@@ -101,7 +101,9 @@ resource "aws_autoscaling_group" "nat_instance" {
 }
 
 resource "aws_iam_role" "ha_nat_lifecycle_hook" {
-  name_prefix        = "ha-nat-lifecycle-hook-"
+  name        = var.nat_instance_lifecycle_hook_role_name == "" ? null : var.nat_instance_lifecycle_hook_role_name
+  name_prefix = var.nat_instance_lifecycle_hook_role_name == "" ? "ha-nat-lifecycle-hook-" : null
+
   assume_role_policy = data.aws_iam_policy_document.lifecycle_hook_assume_role.json
   tags               = var.tags
 }
@@ -176,7 +178,7 @@ resource "aws_launch_template" "nat_instance_template" {
     name = aws_iam_instance_profile.nat_instance.name
   }
 
-  image_id = data.aws_ami.amazon_linux_2.id
+  image_id = var.nat_ami == "" ? data.aws_ami.amazon_linux_2.id : var.nat_ami
 
   instance_type = var.nat_instance_type
 
@@ -214,7 +216,7 @@ resource "aws_launch_template" "nat_instance_template" {
 }
 
 resource "aws_security_group" "nat_instance" {
-  name_prefix = "ha-nat-instance"
+  name_prefix = var.nat_instance_name_prefix
   vpc_id      = var.vpc_id
   tags        = var.tags
 }
@@ -250,7 +252,9 @@ resource "aws_iam_instance_profile" "nat_instance" {
 }
 
 resource "aws_iam_role" "ha_nat_instance" {
-  name_prefix        = "ha-nat-instance-"
+  name        = var.nat_instance_iam_role_name == "" ? null : var.nat_instance_iam_role_name
+  name_prefix = var.nat_instance_iam_role_name == "" ? "ha-nat-instance-" : null
+
   assume_role_policy = data.aws_iam_policy_document.nat_instance_assume_role.json
   tags               = var.tags
 }

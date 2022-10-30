@@ -17,7 +17,8 @@ resource "aws_lambda_function" "ha_nat_autoscaling_hook" {
 }
 
 resource "aws_iam_role" "nat_lambda_role" {
-  name               = "ha-nat-route-table-lambda_role"
+  name               = var.nat_lambda_function_role_name == "" ? null : var.nat_lambda_function_role_name
+  name_prefix        = var.nat_lambda_function_role_name == "" ? "ha-nat-lambda-role-" : null
   assume_role_policy = data.aws_iam_policy_document.nat_lambda_policy.json
   tags               = var.tags
 }

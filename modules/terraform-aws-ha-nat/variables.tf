@@ -53,6 +53,36 @@ variable "max_instance_lifetime" {
   default     = 1209600
 }
 
+variable "nat_ami" {
+  description = "The AMI to use for the NAT instance. Defaults to the latest Amazon Linux 2 AMI."
+  type        = string
+  default     = ""
+}
+
+variable "nat_instance_iam_role_name" {
+  description = "Name to use for the IAM role used by the NAT instance. Must be globally unique in this AWS account."
+  type        = string
+  default     = ""
+}
+
+variable "nat_instance_lifecycle_hook_role_name" {
+  description = "Name to use for the IAM role used by the NAT instance lifecycle hook. Must be globally unique in this AWS account."
+  type        = string
+  default     = ""
+}
+
+variable "nat_lambda_function_role_name" {
+  description = "Name ot use for the IAM role used by the replace-route Lambda function. Must be globally unique in this AWS account."
+  type        = string
+  default     = ""
+}
+
+variable "nat_instance_name_prefix" {
+  description = "Prefix to use for the name of NAT instances."
+  type        = string
+  default     = "ha-nat-"
+}
+
 variable "nat_instance_type" {
   description = "Instance type to use for NAT instances."
   type        = string
