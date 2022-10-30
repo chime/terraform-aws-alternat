@@ -6,25 +6,25 @@ NAT Gateways are dead. Long live NAT instances!
 
 ## Background
 
-On AWS, [NAT devices](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat.html) are required for accessing the Internet from private VPC subnets. Usually, the best option is a NAT gateway, a fully managed NAT service. The [pricing structure of NAT gateway](https://aws.amazon.com/vpc/pricing/) includes charges of $.045 per hour per NAT Gateway, plus **$.045 per GB** processed. The former charge is reasonable at about $32.40 per month. However, the latter charge can be *extremely* expensive for larger traffic volumes. For example, the cost of processing 1PB through a NAT Gateway - not an unusual amount for some use cases - is $45,000. This drawback of NAT gateway is [widely](https://www.lastweekinaws.com/blog/the-aws-managed-nat-gateway-is-unpleasant-and-not-recommended/) [lamented](https://www.cloudforecast.io/blog/aws-nat-gateway-pricing-and-cost/) [among](https://www.vantage.sh/blog/nat-gateway-vpc-endpoint-savings) [AWS users](https://www.stephengrier.com/reducing-the-cost-of-aws-nat-gateways/).
+On AWS, [NAT devices](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat.html) are required for accessing the Internet from private VPC subnets. Usually, the best option is a NAT gateway, a fully managed NAT service. The [pricing structure of NAT gateway](https://aws.amazon.com/vpc/pricing/) includes charges of $.045 per hour per NAT Gateway, plus **$.045 per GB** processed. The former charge is reasonable at about $32.40 per month. However, the latter charge can be *extremely* expensive for larger traffic volumes.
 
-This project is a high availability implementation of [NAT instances](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_NAT_Instance.html), a self-managed alternative to NAT gateways. Unlike NAT Gateways, NAT instances do not suffer from data processing charges. With NAT instances, you pay for:
+For example, the cost of processing 1PB through a NAT Gateway - not an unusual amount for some use cases - is $75,604. Many customers may be processing far less than 1PB, but the cost can be too high even at relatively lower traffic volumes. This drawback of NAT gateway is [widely](https://www.lastweekinaws.com/blog/the-aws-managed-nat-gateway-is-unpleasant-and-not-recommended/) [lamented](https://www.cloudforecast.io/blog/aws-nat-gateway-pricing-and-cost/) [among](https://www.vantage.sh/blog/nat-gateway-vpc-endpoint-savings) [AWS users](https://www.stephengrier.com/reducing-the-cost-of-aws-nat-gateways/).
+
+In addition to the direct NAT Gateway charges, there are also Data Transfer charges for outbound traffic leaving AWS (known as egress traffic). The cost varies depending on destination and volume, ranging from $0.09/GB to $0.01 per GB (after a free tier of 100GB). That’s right: traffic traversing the NAT Gateway is first charged for processing, then charged again for egress to the Internet.
+
+Plug in the numbers to the [AWS Pricing Calculator](https://calculator.aws/#/estimate?id=25774f7303040fde173fe274a8dd6ef268a16087) and you may well be flabbergasted. Let’s use a nice, relatively low round number as an example. Say, 10TB. The cost of processing 10TB (5GB ingress, 5TB egress) through NAT Gateway works out to $954 per month, or $11,448 per year.
+
+Unlike NAT Gateways, NAT instances do not suffer from data processing charges. With NAT instances, you pay for:
 
 1. The cost of the EC2 instances
-1. [Data transfer](https://aws.amazon.com/ec2/pricing/on-demand/#Data_Transfer) out of AWS
+1. [Data transfer](https://aws.amazon.com/ec2/pricing/on-demand/#Data_Transfer) out of AWS (the same as NAT Gateway)
 1. The operational expense of maintaining EC2 instances
 
 Of these, at scale, outbound data transfer (egress from your AWS resources to the Internet) is the most significant. Outbound data transfer is priced on a sliding scale based on the amount of traffic. Inbound data transfer is free. It is this asymmetry that this project leverages to save on the punishing data processing charges of NAT Gateway.
 
-Consider the cost of transferring 500TB inbound and 500TB outbound through a NAT instance. Using the EC2 Data Transfer sliding scale for egress traffic and a `c6gn.2xlarge` NAT instance (optimized for networking), the cost comes to about than $32,800. This is a $12,200 per month savings compared to the NAT Gateway. The higher the volume, the greater the savings, especially so if the traffic is heavily inbound or if you have a Data Transfer Private Pricing agreement with AWS.
+Consider the cost of transferring that same 5TB inbound and 5TB outbound through a NAT instance. Using the EC2 Data Transfer sliding scale for egress traffic and a `c6gn.large` NAT instance (optimized for networking), the cost comes to about $526. This is a $428 per month savings (~45%) compared to the NAT Gateway.
 
-NAT instances aren't for everyone. You might benefit from this project if:
-
-* NAT Gateway data processing costs are a significant item on your AWS bill, and
-* you process significant *ingress* traffic through NAT Gateways, or
-* you are a large enterprise with a Data Transfer Private Pricing agreement with AWS
-
-If the hourly cost of the NAT instances and/or the NAT Gateways are a material line item on your AWS bill, this project is probably not for you. As a rule of thumb, assuming a roughly equal volume of ingress/egress traffic, you might save money using this solution if you are processing more than 150TB per month with NAT Gateway.
+NAT instances aren't for everyone. You might benefit from this project if NAT Gateway data processing costs are a significant item on your AWS bill. If the hourly cost of the NAT instances and/or the NAT Gateways are a material line item on your AWS bill, this project is probably not for you. As a rule of thumb, assuming a roughly equal volume of ingress/egress traffic, you might save money using this solution if you are processing more than 10TB per month with NAT Gateway.
 
 Features:
 
@@ -75,7 +75,23 @@ The replace-route function also acts as a health check. Every minute, in the pri
 
 In the event that a NAT instance is unavailable, the function would have no route to the AWS EC2 and Lambda APIs to perform the necessary steps to update the route table. This is mitigated by the use of [interface VPC endpoints](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/interface-vpc-endpoints.html) to EC2 and Lambda.
 
-> **_IMPORTANT:_** When a route replacement occurs, all active TCP connections will be forcefully disconnected. For example, when the NAT instance max lifetime is reached, the connections will be terminated and reestablished through the NAT Gateway after replace-route has fired. When the new instances comes online and reclaims the route, the connections will again be closed. Well behaved clients should automatically reconnect. However, some clients may not. Unfortunately, there is no way around this. With that said, a disconnected TCP session is always possible on the Internet, so it is advisable to fix clients that exhibit this behavior.
+## Drawbacks
+
+No solution is without its downsides. To understand the primary drawback of this design, a brief discussion about how NAT works is warranted.
+
+NAT stands for Network Address Translation. NAT devices act as proxies, allowing hosts in private networks to communicate over the Internet without public, Internet-routable addresses. They have a network presence in both the private network and on the Internet. NAT devices accept connections from hosts on the private network, mark the connection in a translation table, then open a corresponding connection to the destination using their public-facing Internet connection.
+
+![NAT Translation Table](/assets/nat-table.png)
+
+The table, typically stored in memory on the NAT device, tracks the state of open connections. If the state is lost or changes abruptly, the connections will be unexpectedly closed. Processes on clients in the private network with open connections to the Internet will need to reopen the connection.
+
+In the design described above, we intentionally terminate the NAT instance for automated patching. The connection fails over to the NAT Gateway, then back to the newly launched, freshly patched NAT instance. Any connections that are open during either change - from NAT instance to Gateway, and back again - are closed.
+
+Notably, connectivity to the Internet is never lost. A route to the Internet is available at all times.
+
+For our use case, and for many others, the compromise is acceptable. Many clients will open new connections. Other clients may use primarily short-lived connections that retry after a failure. For some use cases - for example, file transfers, or other operations that are unable to recover from failures - this drawback may be unacceptable.
+
+The Internet is unreliable by design, so failure modes such as connection loss should be a consideration in any system designed for high availability.
 
 ## Usage and Considerations
 
