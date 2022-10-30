@@ -12,7 +12,7 @@ In addition to the direct NAT Gateway charges, there are also Data Transfer char
 
 Consider, for instance, the cost of sending 1PB to and from the Internet through a NAT Gateway - not an unusual amount for some use cases - is $75,604. Many customers may be dealing with far less than 1PB, but the cost can be high even at relatively lower traffic volumes. This drawback of NAT gateway is [widely](https://www.lastweekinaws.com/blog/the-aws-managed-nat-gateway-is-unpleasant-and-not-recommended/) [lamented](https://www.cloudforecast.io/blog/aws-nat-gateway-pricing-and-cost/) [among](https://www.vantage.sh/blog/nat-gateway-vpc-endpoint-savings) [AWS users](https://www.stephengrier.com/reducing-the-cost-of-aws-nat-gateways/).
 
-Plug in the numbers to the [AWS Pricing Calculator](https://calculator.aws/#/estimate?id=25774f7303040fde173fe274a8dd6ef268a16087) and you may well be flabbergasted. Rather than 1PB, which may be less relatable for some users, let’s choose a nice, relatively low round number as an example. Say, 10TB. The cost of sending 10TB over the Internet (5GB ingress, 5TB egress) through NAT Gateway works out to $954 per month, or $11,448 per year.
+Plug in the numbers to the [AWS Pricing Calculator](https://calculator.aws/#/estimate?id=25774f7303040fde173fe274a8dd6ef268a16087) and you may well be flabbergasted. Rather than 1PB, which may be less relatable for some users, let’s choose a nice, relatively low round number as an example. Say, 10TB. The cost of sending 10TB over the Internet (5TB ingress, 5TB egress) through NAT Gateway works out to $954 per month, or $11,448 per year.
 
 Unlike NAT Gateways, NAT instances do not suffer from data processing charges. With NAT instances, you pay for:
 
