@@ -8,11 +8,11 @@ NAT Gateways are dead. Long live NAT instances!
 
 On AWS, [NAT devices](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat.html) are required for accessing the Internet from private VPC subnets. Usually, the best option is a NAT gateway, a fully managed NAT service. The [pricing structure of NAT gateway](https://aws.amazon.com/vpc/pricing/) includes charges of $.045 per hour per NAT Gateway, plus **$.045 per GB** processed. The former charge is reasonable at about $32.40 per month. However, the latter charge can be *extremely* expensive for larger traffic volumes.
 
-For example, the cost of processing 1PB through a NAT Gateway - not an unusual amount for some use cases - is $75,604. Many customers may be processing far less than 1PB, but the cost can be too high even at relatively lower traffic volumes. This drawback of NAT gateway is [widely](https://www.lastweekinaws.com/blog/the-aws-managed-nat-gateway-is-unpleasant-and-not-recommended/) [lamented](https://www.cloudforecast.io/blog/aws-nat-gateway-pricing-and-cost/) [among](https://www.vantage.sh/blog/nat-gateway-vpc-endpoint-savings) [AWS users](https://www.stephengrier.com/reducing-the-cost-of-aws-nat-gateways/).
-
 In addition to the direct NAT Gateway charges, there are also Data Transfer charges for outbound traffic leaving AWS (known as egress traffic). The cost varies depending on destination and volume, ranging from $0.09/GB to $0.01 per GB (after a free tier of 100GB). That’s right: traffic traversing the NAT Gateway is first charged for processing, then charged again for egress to the Internet.
 
-Plug in the numbers to the [AWS Pricing Calculator](https://calculator.aws/#/estimate?id=25774f7303040fde173fe274a8dd6ef268a16087) and you may well be flabbergasted. Let’s use a nice, relatively low round number as an example. Say, 10TB. The cost of processing 10TB (5GB ingress, 5TB egress) through NAT Gateway works out to $954 per month, or $11,448 per year.
+Consider, for instance, the cost of sending 1PB to and from the Internet through a NAT Gateway - not an unusual amount for some use cases - is $75,604. Many customers may be dealing with far less than 1PB, but the cost can be high even at relatively lower traffic volumes. This drawback of NAT gateway is [widely](https://www.lastweekinaws.com/blog/the-aws-managed-nat-gateway-is-unpleasant-and-not-recommended/) [lamented](https://www.cloudforecast.io/blog/aws-nat-gateway-pricing-and-cost/) [among](https://www.vantage.sh/blog/nat-gateway-vpc-endpoint-savings) [AWS users](https://www.stephengrier.com/reducing-the-cost-of-aws-nat-gateways/).
+
+Plug in the numbers to the [AWS Pricing Calculator](https://calculator.aws/#/estimate?id=25774f7303040fde173fe274a8dd6ef268a16087) and you may well be flabbergasted. Rather than 1PB, which may be less relatable for some users, let’s choose a nice, relatively low round number as an example. Say, 10TB. The cost of sending 10TB over the Internet (5GB ingress, 5TB egress) through NAT Gateway works out to $954 per month, or $11,448 per year.
 
 Unlike NAT Gateways, NAT instances do not suffer from data processing charges. With NAT instances, you pay for:
 
@@ -22,9 +22,9 @@ Unlike NAT Gateways, NAT instances do not suffer from data processing charges. W
 
 Of these, at scale, outbound data transfer (egress from your AWS resources to the Internet) is the most significant. Outbound data transfer is priced on a sliding scale based on the amount of traffic. Inbound data transfer is free. It is this asymmetry that this project leverages to save on the punishing data processing charges of NAT Gateway.
 
-Consider the cost of transferring that same 5TB inbound and 5TB outbound through a NAT instance. Using the EC2 Data Transfer sliding scale for egress traffic and a `c6gn.large` NAT instance (optimized for networking), the cost comes to about $526. This is a $428 per month savings (~45%) compared to the NAT Gateway.
+Consider the cost of transferring that same 5TB inbound and 5TB outbound through a NAT instance. Using the EC2 Data Transfer sliding scale for egress traffic and a `c6gn.large` NAT instance (optimized for networking), the cost comes to about $526. This is a $428 per month savings (~45%) compared to the NAT Gateway. The more data processed - especially on the ingress side - the higher the savings.
 
-NAT instances aren't for everyone. You might benefit from this project if NAT Gateway data processing costs are a significant item on your AWS bill. If the hourly cost of the NAT instances and/or the NAT Gateways are a material line item on your AWS bill, this project is probably not for you. As a rule of thumb, assuming a roughly equal volume of ingress/egress traffic, you might save money using this solution if you are processing more than 10TB per month with NAT Gateway.
+NAT instances aren't for everyone. You might benefit from this project if NAT Gateway data processing costs are a significant item on your AWS bill. If the hourly cost of the NAT instances and/or the NAT Gateways are a material line item on your bill, this project is probably not for you. As a rule of thumb, assuming a roughly equal volume of ingress/egress traffic, and considering the slight overhead of operating NAT instances, you might save money using this solution if you are processing more than 10TB per month with NAT Gateway.
 
 Features:
 
