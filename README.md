@@ -20,7 +20,7 @@ Unlike NAT Gateways, NAT instances do not suffer from data processing charges. W
 1. [Data transfer](https://aws.amazon.com/ec2/pricing/on-demand/#Data_Transfer) out of AWS (the same as NAT Gateway)
 1. The operational expense of maintaining EC2 instances
 
-Of these, at scale, outbound data transfer (egress from your AWS resources to the Internet) is the most significant. Outbound data transfer is priced on a sliding scale based on the amount of traffic. Inbound data transfer is free. It is this asymmetry that this project leverages to save on the punishing data processing charges of NAT Gateway.
+Of these, at scale, outbound data transfer is the most significant. Outbound data transfer is priced on a sliding scale based on the amount of traffic. Inbound data transfer is free. It is this asymmetry that this project leverages to save on the punishing data processing charges of NAT Gateway.
 
 Consider the cost of transferring that same 5TB inbound and 5TB outbound through a NAT instance. Using the EC2 Data Transfer sliding scale for egress traffic and a `c6gn.large` NAT instance (optimized for networking), the cost comes to about $526. This is a $428 per month savings (~45%) compared to the NAT Gateway. The more data processed - especially on the ingress side - the higher the savings.
 
