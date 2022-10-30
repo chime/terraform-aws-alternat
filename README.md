@@ -85,11 +85,11 @@ NAT stands for Network Address Translation. NAT devices act as proxies, allowing
 
 The table, typically stored in memory on the NAT device, tracks the state of open connections. If the state is lost or changes abruptly, the connections will be unexpectedly closed. Processes on clients in the private network with open connections to the Internet will need to open new connections.
 
-In the design described above, NAT instances are intentionally terminated for automated patching. The route is updated to use the NAT Gateway, then back to the newly launched, freshly patched NAT instance. Established TCP connections present during either change - from NAT instance to Gateway and back again - are closed.
+In the design described above, NAT instances are intentionally terminated for automated patching. The route is updated to use the NAT Gateway, then back to the newly launched, freshly patched NAT instance. During these changes the NAT table is lost. Established TCP connections present at the time of the change will still appear to be open on both ends of the connection (client and server) because no TCP FIN or RST has been sent, but will in fact be closed because the table is lost and the public IP address of the NAT has changed.
 
 Importantly, **connectivity to the Internet is never lost**. A route to the Internet is available at all times.
 
-For our use case, and for many others, the compromise is acceptable. Many clients will open new connections. Other clients may use primarily short-lived connections that retry after a failure. For some use cases - for example, file transfers, or other operations that are unable to recover from failures - this drawback may be unacceptable. In this case, the max instance lifetime can be disabled, and route changes would only occur in the unlikely event that a NAT instance failed for another reason and the connectivity checker automatically redirects through the NAT Gateway.
+For our use case, and for many others, this limitation is acceptable. Many clients will open new connections. Other clients may use primarily short-lived connections that retry after a failure. For some use cases - for example, file transfers, or other operations that are unable to recover from failures - this drawback may be unacceptable. In this case, the max instance lifetime can be disabled, and route changes would only occur in the unlikely event that a NAT instance failed for another reason, in which case the connectivity checker automatically redirects through the NAT Gateway.
 
 The Internet is unreliable by design, so failure modes such as connection loss should be a consideration in any resilient system.
 
@@ -156,6 +156,16 @@ Feel free to submit a pull request or create an issue if you need an input or ou
 
 - There are four Elastic IP addresses for the NAT instances and four for the NAT Gateways. Be sure to add all eight addresses to any external allow lists if necessary.
 
+
+## Future work
+
+We would like this benefit to benefit as many users as possible. Possible future enhancements include:
+
+- CloudFormation implementation
+- AWS CDK implementation
+- Pulumi implementation
+- Support for maintenance windows
+- Addition of a CloudWatch dashboard
 
 ## Contributing
 
