@@ -83,15 +83,15 @@ NAT stands for Network Address Translation. NAT devices act as proxies, allowing
 
 ![NAT Translation Table](/assets/nat-table.png)
 
-The table, typically stored in memory on the NAT device, tracks the state of open connections. If the state is lost or changes abruptly, the connections will be unexpectedly closed. Processes on clients in the private network with open connections to the Internet will need to reopen the connection.
+The table, typically stored in memory on the NAT device, tracks the state of open connections. If the state is lost or changes abruptly, the connections will be unexpectedly closed. Processes on clients in the private network with open connections to the Internet will need to open new connections.
 
-In the design described above, we intentionally terminate the NAT instance for automated patching. The connection fails over to the NAT Gateway, then back to the newly launched, freshly patched NAT instance. Any connections that are open during either change - from NAT instance to Gateway, and back again - are closed.
+In the design described above, NAT instances are intentionally terminated for automated patching. The route is updated to use the NAT Gateway, then back to the newly launched, freshly patched NAT instance. Established TCP connections present during either change - from NAT instance to Gateway and back again - are closed.
 
-Notably, connectivity to the Internet is never lost. A route to the Internet is available at all times.
+Importantly, **connectivity to the Internet is never lost**. A route to the Internet is available at all times.
 
-For our use case, and for many others, the compromise is acceptable. Many clients will open new connections. Other clients may use primarily short-lived connections that retry after a failure. For some use cases - for example, file transfers, or other operations that are unable to recover from failures - this drawback may be unacceptable.
+For our use case, and for many others, the compromise is acceptable. Many clients will open new connections. Other clients may use primarily short-lived connections that retry after a failure. For some use cases - for example, file transfers, or other operations that are unable to recover from failures - this drawback may be unacceptable. In this case, the max instance lifetime can be disabled, and route changes would only occur in the unlikely event that a NAT instance failed for another reason and the connectivity checker automatically redirects through the NAT Gateway.
 
-The Internet is unreliable by design, so failure modes such as connection loss should be a consideration in any system designed for high availability.
+The Internet is unreliable by design, so failure modes such as connection loss should be a consideration in any resilient system.
 
 ## Usage and Considerations
 
