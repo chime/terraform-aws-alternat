@@ -88,7 +88,7 @@ resource "aws_autoscaling_group" "nat_instance" {
   dynamic "tag" {
     for_each = merge(
       var.tags,
-      { Name = "${var.nat_instance_name_prefix}-${count.index}" },
+      { Name = "${var.nat_instance_name_prefix}${count.index}" },
       data.aws_default_tags.current.tags,
     )
 
@@ -246,7 +246,7 @@ resource "aws_security_group_rule" "nat_instance_ingress" {
 ### NAT instance IAM
 
 resource "aws_iam_instance_profile" "nat_instance" {
-  name        = var.nat_instance_iam_profile_name == "" ? null : var.nat_instance_iam_role_name
+  name        = var.nat_instance_iam_profile_name == "" ? null : var.nat_instance_iam_profile_name
   name_prefix = var.nat_instance_iam_profile_name == "" ? "ha-nat-instance-" : null
 
   role = aws_iam_role.ha_nat_instance.name
