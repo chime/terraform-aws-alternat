@@ -1,6 +1,6 @@
 # Lambda function for Auto Scaling Group Lifecycle Hook
 resource "aws_lambda_function" "ha_nat_autoscaling_hook" {
-  function_name = "ha-nat-autoscaling-hook"
+  function_name = var.autoscaling_hook_function_name
   package_type  = "Image"
   memory_size   = 256
   image_uri     = "${var.ha_nat_image_uri}:${var.ha_nat_image_tag}"
@@ -106,7 +106,7 @@ resource "aws_sns_topic_subscription" "nat_lambda_topic_subscription" {
 resource "aws_lambda_function" "ha_nat_connectivity_tester" {
   count = length(var.vpc_private_subnet_ids)
 
-  function_name = "ha-nat-connectivity-tester-${count.index}"
+  function_name = "${var.connectivity_tester_function_name}-${count.index}"
   package_type  = "Image"
   memory_size   = 256
   timeout       = 300
@@ -144,7 +144,7 @@ resource "aws_security_group_rule" "nat_lambda_egress" {
 }
 
 resource "aws_cloudwatch_event_rule" "every_minute" {
-  name                = "ha-nat-test-every-minute"
+  name                = var.connectivity_test_event_rule_name
   description         = "Fires every minute"
   schedule_expression = "rate(1 minute)"
   tags                = var.tags
