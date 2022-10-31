@@ -96,15 +96,15 @@ variable "nat_instance_lifecycle_hook_role_name" {
 }
 
 variable "nat_instance_name_prefix" {
-  description = "Prefix for the NAT instance names. Because there is an instance created in each ASG, the name will be suffixed with an index."
+  description = "Prefix for the NAT Auto Scaling Group and instance names. Because there is an instance created in each ASG, the name will be suffixed with an index."
   type        = string
-  default     = "ha-nat"
+  default     = "ha-nat-"
 }
 
 variable "nat_instance_sg_name_prefix" {
   description = "Prefix for the NAT instance security group name."
   type        = string
-  default     = "ha-nat"
+  default     = "ha-nat-instance"
 }
 
 variable "nat_lambda_function_role_name" {
