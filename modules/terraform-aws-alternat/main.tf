@@ -6,8 +6,8 @@ locals {
       default_result          = "CONTINUE"
       heartbeat_timeout       = 180
       lifecycle_transition    = "autoscaling:EC2_INSTANCE_TERMINATING"
-      notification_target_arn = aws_sns_topic.ha_nat_topic.arn
-      role_arn                = aws_iam_role.ha_nat_lifecycle_hook.arn
+      notification_target_arn = aws_sns_topic.alternat_topic.arn
+      role_arn                = aws_iam_role.alternat_lifecycle_hook.arn
     }
   ]
 
@@ -47,12 +47,12 @@ resource "aws_eip" "nat_instance_eips" {
 
   vpc = true
   tags = merge(var.tags, {
-    "Name" = "ha-nat-instance-${count.index}"
+    "Name" = "alternat-instance-${count.index}"
   })
 }
 
-resource "aws_sns_topic" "ha_nat_topic" {
-  name_prefix       = "ha-nat-topic"
+resource "aws_sns_topic" "alternat_topic" {
+  name_prefix       = "alternat-topic"
   kms_master_key_id = "alias/aws/sns"
   tags              = var.tags
 }
@@ -100,9 +100,9 @@ resource "aws_autoscaling_group" "nat_instance" {
   }
 }
 
-resource "aws_iam_role" "ha_nat_lifecycle_hook" {
+resource "aws_iam_role" "alternat_lifecycle_hook" {
   name        = var.nat_instance_lifecycle_hook_role_name == "" ? null : var.nat_instance_lifecycle_hook_role_name
-  name_prefix = var.nat_instance_lifecycle_hook_role_name == "" ? "ha-nat-lifecycle-hook-" : null
+  name_prefix = var.nat_instance_lifecycle_hook_role_name == "" ? "alternat-lifecycle-hook-" : null
 
   assume_role_policy = data.aws_iam_policy_document.lifecycle_hook_assume_role.json
   tags               = var.tags
@@ -130,14 +130,14 @@ data "aws_iam_policy_document" "lifecycle_hook_policy" {
     actions = [
       "sns:Publish",
     ]
-    resources = [aws_sns_topic.ha_nat_topic.arn]
+    resources = [aws_sns_topic.alternat_topic.arn]
   }
 }
 
-resource "aws_iam_role_policy" "ha_nat_lifecycle_hook" {
+resource "aws_iam_role_policy" "alternat_lifecycle_hook" {
   name   = "lifecycle-publish-policy"
   policy = data.aws_iam_policy_document.lifecycle_hook_policy.json
-  role   = aws_iam_role.ha_nat_lifecycle_hook.name
+  role   = aws_iam_role.alternat_lifecycle_hook.name
 }
 
 
@@ -208,7 +208,7 @@ resource "aws_launch_template" "nat_instance_template" {
     })
   }
 
-  user_data = base64encode(templatefile("${path.module}/ha-nat.sh.tftpl", {
+  user_data = base64encode(templatefile("${path.module}/alternat.sh.tftpl", {
     tf_eip_allocation_ids = join(",", aws_eip.nat_instance_eips[*].allocation_id),
     tf_subnet_suffix      = var.subnet_suffix,
     tf_vpc_id             = var.vpc_id
@@ -247,15 +247,15 @@ resource "aws_security_group_rule" "nat_instance_ingress" {
 
 resource "aws_iam_instance_profile" "nat_instance" {
   name        = var.nat_instance_iam_profile_name == "" ? null : var.nat_instance_iam_profile_name
-  name_prefix = var.nat_instance_iam_profile_name == "" ? "ha-nat-instance-" : null
+  name_prefix = var.nat_instance_iam_profile_name == "" ? "alternat-instance-" : null
 
-  role = aws_iam_role.ha_nat_instance.name
+  role = aws_iam_role.alternat_instance.name
   tags = var.tags
 }
 
-resource "aws_iam_role" "ha_nat_instance" {
+resource "aws_iam_role" "alternat_instance" {
   name        = var.nat_instance_iam_role_name == "" ? null : var.nat_instance_iam_role_name
-  name_prefix = var.nat_instance_iam_role_name == "" ? "ha-nat-instance-" : null
+  name_prefix = var.nat_instance_iam_role_name == "" ? "alternat-instance-" : null
 
   assume_role_policy = data.aws_iam_policy_document.nat_instance_assume_role.json
   tags               = var.tags
@@ -278,11 +278,11 @@ data "aws_iam_policy_document" "nat_instance_assume_role" {
 
 resource "aws_iam_role_policy_attachment" "ssm" {
   count      = var.enable_ssm ? 1 : 0
-  role       = aws_iam_role.ha_nat_instance.name
+  role       = aws_iam_role.alternat_instance.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-data "aws_iam_policy_document" "ha_nat_ec2_policy" {
+data "aws_iam_policy_document" "alternat_ec2_policy" {
   statement {
     sid    = "HANATInstancePermissions"
     effect = "Allow"
@@ -334,18 +334,18 @@ data "aws_iam_policy_document" "ha_nat_ec2_policy" {
   }
 }
 
-resource "aws_iam_role_policy" "ha_nat_ec2" {
-  name   = "ha-nat-policy"
-  policy = data.aws_iam_policy_document.ha_nat_ec2_policy.json
-  role   = aws_iam_role.ha_nat_instance.name
+resource "aws_iam_role_policy" "alternat_ec2" {
+  name   = "alternat-policy"
+  policy = data.aws_iam_policy_document.alternat_ec2_policy.json
+  role   = aws_iam_role.alternat_instance.name
 }
 
-resource "aws_iam_role_policy" "ha_nat_additional_policies" {
+resource "aws_iam_role_policy" "alternat_additional_policies" {
   count = length(var.additional_instance_policies)
 
   name   = var.additional_instance_policies[count.index].policy_name
   policy = var.additional_instance_policies[count.index].policy_json
-  role   = aws_iam_role.ha_nat_instance.name
+  role   = aws_iam_role.alternat_instance.name
 }
 
 ## NAT Gateway used as a backup route
@@ -353,7 +353,7 @@ resource "aws_eip" "nat_gateway_eips" {
   count = length(var.vpc_public_subnet_ids)
   vpc   = true
   tags = merge(var.tags, {
-    "Name" = "ha-nat-gateway-${count.index}"
+    "Name" = "alternat-gateway-${count.index}"
   })
 }
 
@@ -362,7 +362,7 @@ resource "aws_nat_gateway" "main" {
   allocation_id = aws_eip.nat_gateway_eips[count.index].id
   subnet_id     = var.vpc_public_subnet_ids[count.index]
   tags = merge(var.tags, {
-    Name = "ha-nat-${count.index}"
+    Name = "alternat-${count.index}"
   })
 }
 
