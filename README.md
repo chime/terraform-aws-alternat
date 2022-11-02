@@ -5,7 +5,9 @@ NAT Gateways are dead. Long live NAT instances!
 ![build](https://github.com/1debit/alternat/actions/workflows/main.yaml/badge.svg)
 
 
-Built and released with 💚 by ![Chime Engineering](/assets/Chime_company_logo.png) ![build](https://github.com/1debit/ha-nat/actions/workflows/main.yaml/badge.svg)
+Built and released with 💚 by ![Chime Engineering](/assets/Chime_company_logo.png)
+
+![build](https://github.com/1debit/ha-nat/actions/workflows/main.yaml/badge.svg)
 
 ## Background
 
