@@ -1,3 +1,5 @@
+![Chime Engineering](/assets/Chime_company_logo.png)
+
 # alterNAT
 
 NAT Gateways are dead. Long live NAT instances!
