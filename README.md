@@ -1,10 +1,10 @@
-![Chime Engineering](/assets/Chime_company_logo.png)
-
 # alterNAT
 
 NAT Gateways are dead. Long live NAT instances!
 
 ![build](https://github.com/1debit/alternat/actions/workflows/main.yaml/badge.svg)
+
+![Chime Engineering](/assets/Chime_company_logo.png)
 
 ## Background
 
