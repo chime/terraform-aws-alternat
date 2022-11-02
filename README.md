@@ -1,4 +1,4 @@
-# HA NAT Instances
+# alterNAT
 
 NAT Gateways are dead. Long live NAT instances!
 
@@ -20,11 +20,11 @@ Unlike NAT Gateways, NAT instances do not suffer from data processing charges. W
 1. [Data transfer](https://aws.amazon.com/ec2/pricing/on-demand/#Data_Transfer) out of AWS (the same as NAT Gateway)
 1. The operational expense of maintaining EC2 instances
 
-Of these, at scale, outbound data transfer is the most significant. Outbound data transfer is priced on a sliding scale based on the amount of traffic. Inbound data transfer is free. It is this asymmetry that this project leverages to save on the punishing data processing charges of NAT Gateway.
+Of these, at scale, outbound data transfer is the most significant. Outbound data transfer is priced on a sliding scale based on the amount of traffic. Inbound data transfer is free. It is this asymmetry that alterNAT leverages to save on the punishing data processing charges of NAT Gateway.
 
 Consider the cost of transferring that same 5TB inbound and 5TB outbound through a NAT instance. Using the EC2 Data Transfer sliding scale for egress traffic and a `c6gn.large` NAT instance (optimized for networking), the cost comes to about $526. This is a $428 per month savings (~45%) compared to the NAT Gateway. The more data processed - especially on the ingress side - the higher the savings.
 
-NAT instances aren't for everyone. You might benefit from this project if NAT Gateway data processing costs are a significant item on your AWS bill. If the hourly cost of the NAT instances and/or the NAT Gateways are a material line item on your bill, this project is probably not for you. As a rule of thumb, assuming a roughly equal volume of ingress/egress traffic, and considering the slight overhead of operating NAT instances, you might save money using this solution if you are processing more than 10TB per month with NAT Gateway.
+NAT instances aren't for everyone. You might benefit from alterNAT if NAT Gateway data processing costs are a significant item on your AWS bill. If the hourly cost of the NAT instances and/or the NAT Gateways are a material line item on your bill, alterNAT is probably not for you. As a rule of thumb, assuming a roughly equal volume of ingress/egress traffic, and considering the slight overhead of operating NAT instances, you might save money using this solution if you are processing more than 10TB per month with NAT Gateway.
 
 Features:
 
@@ -36,7 +36,7 @@ Features:
 * A Terraform module to set everything up
 * Compatibility with the default naming convention used by the open source [terraform-aws-vpc Terraform module](https://github.com/terraform-aws-modules/terraform-aws-vpc/blob/master/variables.tf)
 
-Read on to learn more about the project.
+Read on to learn more about alterNAT.
 
 ## Architecture overview
 
@@ -95,7 +95,7 @@ The Internet is unreliable by design, so failure modes such as connection loss s
 
 ## Usage and Considerations
 
-There are two high level steps to using this project:
+There are two high level steps to using alterNAT:
 
 1. Build and push the container image using the [`Dockerfile`](Dockerfile).
 1. Use the Terraform module to deploy all the things.
@@ -171,7 +171,7 @@ We would like this benefit to benefit as many users as possible. Possible future
 
 [Issues](https://github.com/issues) and [pull requests](https://github.com/1debit/alternat/pulls) are most welcome!
 
-This project is intended to be a safe, welcoming space for collaboration. Contributors are expected to adhere to the [Contributor Covenant code of conduct](CODE_OF_CONDUCT.md).
+alterNAT is intended to be a safe, welcoming space for collaboration. Contributors are expected to adhere to the [Contributor Covenant code of conduct](CODE_OF_CONDUCT.md).
 
 
 ## Local Testing
