@@ -7,7 +7,7 @@
     "time": "2022-09-01T21:02:19Z",
     "region": "us-east-1",
     "resources": [
-        "arn:aws:events:us-east-1:0123456789012:rule/ha-nat-test-every-minute"
+        "arn:aws:events:us-east-1:0123456789012:rule/alternat-test-every-minute"
     ],
     "detail": {}
 }

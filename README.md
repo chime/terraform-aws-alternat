@@ -2,7 +2,7 @@
 
 NAT Gateways are dead. Long live NAT instances!
 
-![build](https://github.com/1debit/ha-nat/actions/workflows/main.yaml/badge.svg)
+![build](https://github.com/1debit/alternat/actions/workflows/main.yaml/badge.svg)
 
 ## Background
 
@@ -47,11 +47,11 @@ The two main elements of the NAT instance solution are:
 1. The NAT instance Auto Scaling Groups, one per zone, with a corresponding standby NAT Gateway
 1. The replace-route Lambda function
 
-Both are deployed by the Terraform module located in [`modules/terraform-aws-ha-nat`](modules/terraform-aws-ha-nat).
+Both are deployed by the Terraform module located in [`modules/terraform-aws-alternat`](modules/terraform-aws-alternat).
 
 ### NAT instance Auto Scaling Group and standby NAT Gateway
 
-The solution deploys an Auto Scaling Group (ASG) for each provided public subnet. Each ASG contains a single instance. When the instance boots, the [user data](modules/terraform-aws-ha-nat/ha-nat.sh.tftpl) initializes the instance to do the NAT stuff.
+The solution deploys an Auto Scaling Group (ASG) for each provided public subnet. Each ASG contains a single instance. When the instance boots, the [user data](modules/terraform-aws-alternat/alternat.sh.tftpl) initializes the instance to do the NAT stuff.
 
 By default, the ASGs are configured with a [maximum instance lifetime](https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-max-instance-lifetime.html). This is to facilitate periodic replacement of the instance to automate patching. When the maximum instance lifetime is reached (14 days by default), the following occurs:
 
@@ -84,7 +84,7 @@ There are two high level steps to using this project:
 1. Build and push the container image using the [`Dockerfile`](Dockerfile).
 1. Use the Terraform module to deploy all the things.
 
-Use this project directly, as provided, or draw inspiration from it and use only the parts you need. We cut [releases](https://github.com/1debit/ha-nat/releases) following the [Semantic Versioning](https://semver.org/) method. We recommend pinning to our tagged releases or using the short commit SHA if you decide to use this repo directly.
+Use this project directly, as provided, or draw inspiration from it and use only the parts you need. We cut [releases](https://github.com/1debit/alternat/releases) following the [Semantic Versioning](https://semver.org/) method. We recommend pinning to our tagged releases or using the short commit SHA if you decide to use this repo directly.
 
 ### Building and pushing the container image
 
@@ -97,14 +97,14 @@ docker push <your_registry_url>/<your_repo:<release tag or short git commit sha>
 
 ### Use the Terraform module
 
-Start by reviewing the available [input variables](modules/terraform-aws-ha-nat/variables.tf). Example usage:
+Start by reviewing the available [input variables](modules/terraform-aws-alternat/variables.tf). Example usage:
 
 ```
-module "ha_nat_instances" {
-  source = "1debit/ha-nat//modules/terraform-aws-ha-nat?ref=v0.1.0"
+module "alternat_instances" {
+  source = "1debit/alternat//modules/terraform-aws-alternat?ref=v0.1.0"
 
-  ha_nat_image_uri = "0123456789012.dkr.ecr.us-east-1.amazonaws.com/ha-nat-functions-lambda"
-  ha_nat_image_tag = "v0.1.0"
+  alternat_image_uri = "0123456789012.dkr.ecr.us-east-1.amazonaws.com/alternat-functions-lambda"
+  alternat_image_tag = "v0.1.0"
 
   ingress_security_group_ids = var.ingress_security_group_ids
 
@@ -143,7 +143,7 @@ Feel free to submit a pull request or create an issue if you need an input or ou
 
 ## Contributing
 
-[Issues](https://github.com/issues) and [pull requests](https://github.com/1debit/ha-nat/pulls) are most welcome!
+[Issues](https://github.com/issues) and [pull requests](https://github.com/1debit/alternat/pulls) are most welcome!
 
 This project is intended to be a safe, welcoming space for collaboration. Contributors are expected to adhere to the [Contributor Covenant code of conduct](CODE_OF_CONDUCT.md).
 

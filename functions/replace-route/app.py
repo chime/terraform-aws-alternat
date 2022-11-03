@@ -325,14 +325,14 @@ def connectivity_test_handler(event, context):
         logger.info("Successfully connected to www.example.com")
         return
     except requests.exceptions.RequestException as error:
-        logger.error("ha-nat-connectivity-test error connecting to example.com: %s", error)
+        logger.error("alternat-connectivity-test error connecting to example.com: %s", error)
 
     try:
         requests.get("https://www.google.com", timeout=5)
         logger.info("Successfully connected to www.google.com")
         return
     except requests.exceptions.RequestException as error:
-        logger.error("ha-nat-connectivity-test error connecting to google.com: %s", error)
+        logger.error("alternat-connectivity-test error connecting to google.com: %s", error)
 
     logger.warning("Failed connectivity tests! Replacing route")
 

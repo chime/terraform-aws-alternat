@@ -107,7 +107,7 @@ def test_handler():
 
     autoscaling_client = boto3.client("autoscaling")
     autoscaling_client.create_auto_scaling_group(
-        AutoScalingGroupName="ha-nat-asg",
+        AutoScalingGroupName="alternat-asg",
         VPCZoneIdentifier=mocked_networking["subnet1"],
         MinSize=1,
         MaxSize=1,
@@ -160,7 +160,7 @@ def _process_lambda(func_str):
 @mock_ec2
 @responses.activate
 def test_connectivity_test_handler():
-    lambda_function_name = "ha-nat-connectivity-test"
+    lambda_function_name = "alternat-connectivity-test"
     mocked_networking = setup_networking()
 
     lambda_client = boto3.client("lambda")

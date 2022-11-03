@@ -13,6 +13,24 @@ variable "architecture" {
   default     = "arm64"
 }
 
+variable "autoscaling_hook_function_name" {
+  description = "The name to use for the autoscaling hook Lambda function."
+  type        = string
+  default     = "alternat-autoscaling-hook"
+}
+
+variable "connectivity_test_event_rule_name" {
+  description = "The name to use for the event rule that invokes the connectivity test Lambda function."
+  type        = string
+  default     = "alternat-test-every-minute"
+}
+
+variable "connectivity_tester_function_name" {
+  description = "The prefix to use for the name of the connectivity tester Lambda function. Because there is a function created in each ASG, the name will be suffixed with an index."
+  type        = string
+  default     = "alternat-connectivity-tester"
+}
+
 variable "enable_ec2_endpoint" {
   description = "Whether to create a VPC endpoint to EC2 for Internet Connectivity testing."
   type        = bool
@@ -31,13 +49,13 @@ variable "enable_ssm" {
   default     = true
 }
 
-variable "ha_nat_image_tag" {
+variable "alternat_image_tag" {
   description = "The tag of the container image for the HA NAT Lambda functions."
   type        = string
   default     = "latest"
 }
 
-variable "ha_nat_image_uri" {
+variable "alternat_image_uri" {
   description = "The URI of the container image for the HA NAT Lambda functions."
   type        = string
 }
@@ -51,6 +69,48 @@ variable "max_instance_lifetime" {
   description = "Max instance life in seconds. Defaults to 14 days. Set to 0 to disable."
   type        = number
   default     = 1209600
+}
+
+variable "nat_ami" {
+  description = "The AMI to use for the NAT instance. Defaults to the latest Amazon Linux 2 AMI."
+  type        = string
+  default     = ""
+}
+
+variable "nat_instance_iam_profile_name" {
+  description = "Name to use for the IAM profile used by the NAT instance. Must be globally unique in this AWS account. Defaults to alternat-instance- as a prefix."
+  type        = string
+  default     = ""
+}
+
+variable "nat_instance_iam_role_name" {
+  description = "Name to use for the IAM role used by the NAT instance. Must be globally unique in this AWS account. Defaults to alternat-instance- as a prefix."
+  type        = string
+  default     = ""
+}
+
+variable "nat_instance_lifecycle_hook_role_name" {
+  description = "Name to use for the IAM role used by the NAT instance lifecycle hook. Must be globally unique in this AWS account. Defaults to alternat-lifecycle-hook as a prefix."
+  type        = string
+  default     = ""
+}
+
+variable "nat_instance_name_prefix" {
+  description = "Prefix for the NAT Auto Scaling Group and instance names. Because there is an instance created in each ASG, the name will be suffixed with an index."
+  type        = string
+  default     = "alternat-"
+}
+
+variable "nat_instance_sg_name_prefix" {
+  description = "Prefix for the NAT instance security group name."
+  type        = string
+  default     = "alternat-instance"
+}
+
+variable "nat_lambda_function_role_name" {
+  description = "Name ot use for the IAM role used by the replace-route Lambda function. Must be globally unique in this AWS account."
+  type        = string
+  default     = ""
 }
 
 variable "nat_instance_type" {
