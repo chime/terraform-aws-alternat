@@ -120,7 +120,7 @@ Start by reviewing the available [input variables](modules/terraform-aws-alterna
 
 ```
 module "alternat_instances" {
-  source = "1debit/alternat//modules/terraform-aws-alternat?ref=v0.1.0"
+  source = "git::https://github.com/1debit/alternat.git//modules/terraform-aws-alternat?ref=v0.1.0"
 
   alternat_image_uri = "0123456789012.dkr.ecr.us-east-1.amazonaws.com/alternat-functions-lambda"
   alternat_image_tag = "v0.1.0"
@@ -140,6 +140,10 @@ module "alternat_instances" {
 ```
 
 Feel free to submit a pull request or create an issue if you need an input or output that isn't available.
+
+#### Why isn't this module published on the Terraform registry?
+
+While we'd like for this to be available on the Terraform Registry, it requires a specific repo naming convention and folder structure that we do not want to adopt.
 
 ### Other considerations
 
