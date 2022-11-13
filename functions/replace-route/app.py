@@ -6,6 +6,7 @@ import time
 import botocore
 import boto3
 import requests
+from requests import ReadTimeout, ConnectTimeout, HTTPError, Timeout, ConnectionError, RequestException
 
 
 logger = logging.getLogger()
@@ -26,6 +27,11 @@ DEFAULT_SUBNET_SUFFIX = "private"
 
 # Checks every CONNECTIVITY_CHECK_INTERVAL seconds, exits after 1 minute
 DEFAULT_CONNECTIVITY_CHECK_INTERVAL = "5"
+
+# Which URLs to check for connectivity
+DEFAULT_CHECK_URLS = ["https://www.example.com", "https://www.google.com"]
+
+REQUEST_TIMEOUT = 5
 
 def get_az_and_vpc_zone_identifier(auto_scaling_group):
     autoscaling = boto3.client("autoscaling")
@@ -291,28 +297,20 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
         raise error
 
 
-def check_connection(function_name):
+def check_connection(function_name, check_urls):
     """
-    Checks connectivity to www.example.com and, if that fails, www.google.com.
-    If both fail, replaces the route table to point at a standby NAT Gateway.
-
-    Returns True if the connection succeeds.
-    Returns False if the connection fails and the route is replaced.
-
+    Checks connectivity to check_urls. If any of them succeed, return success.
+    If both fail, replaces the route table to point at a standby NAT Gateway and
+    return failure.
     """
-    try:
-        requests.get("https://www.example.com", timeout=5)
-        logger.info("Successfully connected to www.example.com")
-        return True
-    except requests.exceptions.RequestException as error:
-        logger.error("connectivity test error connecting to example.com: %s", error)
-
-    try:
-        requests.get("https://www.google.com", timeout=5)
-        logger.info("Successfully connected to www.google.com")
-        return True
-    except requests.exceptions.RequestException as error:
-        logger.error("connectivity test error connecting to google.com: %s", error)
+    for url in check_urls:
+        try:
+            requests.get(url, timeout=REQUEST_TIMEOUT)
+            logger.info("Successfully connected to %s", url)
+            return True
+        except (ReadTimeout, ConnectTimeout, HTTPError, Timeout,
+                ConnectionError, RequestException) as error:
+            logger.error("error connecting to %s: %s", url, error)
 
     logger.warning("Failed connectivity tests! Replacing route")
 
@@ -360,12 +358,13 @@ def connectivity_test_handler(event, context):
     logger.info("Starting NAT instance connectivity test")
 
     check_interval = int(os.getenv("CONNECTIVITY_CHECK_INTERVAL", DEFAULT_CONNECTIVITY_CHECK_INTERVAL))
+    check_urls = os.getenv("CHECK_URLS", DEFAULT_CHECK_URLS)
 
     # Run connectivity checks for approximately 1 minute
     run = 0
     num_runs = 60 / check_interval
     while run < num_runs:
-        if check_connection(context.function_name):
+        if check_connection(context.function_name, check_urls):
             time.sleep(check_interval)
             run += 1
         else:
