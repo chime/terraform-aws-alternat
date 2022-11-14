@@ -96,6 +96,10 @@ For our use case, and for many others, this limitation is acceptable. Many clien
 
 The Internet is unreliable by design, so failure modes such as connection loss should be a consideration in any resilient system.
 
+### Edge cases
+
+As described above, alterNAT uses the [`ReplaceRoute` API](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_ReplaceRoute.html) (among others) to switch the route in the event of a NAT instance failure or Auto Scaling termination event. One possible failure scenario could occur where the EC2 control plane is for some reason not functional (e.g. an outage within AWS) and a NAT instance fails at the same time. The replace-route function may be unable to automatically switch the route to the NAT Gateway because the control plane is down. One mitigation would be to attempt to manually replace the route for the impacted subnet(s) using the CLI or console. However, if the control plane is in fact down and no APIs are working, waiting until the issue is resolved may be the only option.
+
 ## Usage and Considerations
 
 There are two high level steps to using alterNAT:
