@@ -40,10 +40,13 @@ locals {
   )
 
   endpoints = merge(local.ec2_endpoint, local.lambda_endpoint)
+
+  reuse_nat_instance_eips = try(length(var.nat_instance_eip_ids), 0) > 0
+  nat_instance_eip_ids    = local.reuse_nat_instance_eips ? var.nat_instance_eip_ids : try(aws_eip.nat_instance_eips[*].id, [])
 }
 
 resource "aws_eip" "nat_instance_eips" {
-  count = length(var.vpc_public_subnet_ids)
+  count = local.reuse_nat_instance_eips ? 0 : length(var.vpc_public_subnet_ids)
 
   vpc = true
   tags = merge(var.tags, {
@@ -209,7 +212,7 @@ resource "aws_launch_template" "nat_instance_template" {
   }
 
   user_data = base64encode(templatefile("${path.module}/alternat.sh.tftpl", {
-    tf_eip_allocation_ids = join(",", aws_eip.nat_instance_eips[*].allocation_id),
+    tf_eip_allocation_ids = join(",", local.nat_instance_eip_ids),
     tf_subnet_suffix      = var.subnet_suffix,
     tf_vpc_id             = var.vpc_id
   }))

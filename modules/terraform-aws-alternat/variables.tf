@@ -63,6 +63,7 @@ variable "alternat_image_uri" {
 variable "ingress_security_group_ids" {
   description = "A list of security group IDs that are allowed by the NAT instance."
   type        = list(string)
+  default     = []
 }
 
 variable "max_instance_lifetime" {
@@ -117,6 +118,12 @@ variable "nat_instance_type" {
   description = "Instance type to use for NAT instances."
   type        = string
   default     = "c6gn.8xlarge"
+}
+
+variable "nat_instance_eip_ids" {
+  description = "Allocation IDs of Elastic IPs to associate with the NAT instances. If not specified, EIPs will be created."
+  type        = list(string)
+  default     = []
 }
 
 variable "subnet_suffix" {
