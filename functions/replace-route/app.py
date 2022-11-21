@@ -1,10 +1,12 @@
 import os
 import json
 import logging
+import time
 
 import botocore
 import boto3
 import requests
+from requests import ReadTimeout, ConnectTimeout, HTTPError, Timeout, ConnectionError, RequestException
 
 
 logger = logging.getLogger()
@@ -17,8 +19,19 @@ ec2_client = boto3.client("ec2")
 LIFECYCLE_KEY = "LifecycleHookName"
 ASG_KEY = "AutoScalingGroupName"
 EC2_KEY = "EC2InstanceId"
+
+# Subnet naming convention must be <OPTIONAL PREFIX>-<SUBNET_SUFFIX>-<AZ>
+# Configurable via SUBNET_SUFFIX env var
+# e.g. my-vpc-name-private-us-east-1a
 DEFAULT_SUBNET_SUFFIX = "private"
 
+# Checks every CONNECTIVITY_CHECK_INTERVAL seconds, exits after 1 minute
+DEFAULT_CONNECTIVITY_CHECK_INTERVAL = "5"
+
+# Which URLs to check for connectivity
+DEFAULT_CHECK_URLS = ["https://www.example.com", "https://www.google.com"]
+
+REQUEST_TIMEOUT = 5
 
 def get_az_and_vpc_zone_identifier(auto_scaling_group):
     autoscaling = boto3.client("autoscaling")
@@ -284,6 +297,30 @@ def describe_and_replace_route(subnet_id, nat_gateway_id):
         raise error
 
 
+def check_connection(function_name, check_urls):
+    """
+    Checks connectivity to check_urls. If any of them succeed, return success.
+    If both fail, replaces the route table to point at a standby NAT Gateway and
+    return failure.
+    """
+    for url in check_urls:
+        try:
+            requests.get(url, timeout=REQUEST_TIMEOUT)
+            logger.info("Successfully connected to %s", url)
+            return True
+        except (ReadTimeout, ConnectTimeout, HTTPError, Timeout,
+                ConnectionError, RequestException) as error:
+            logger.error("error connecting to %s: %s", url, error)
+
+    logger.warning("Failed connectivity tests! Replacing route")
+
+    vpc_id, public_subnet_id, lambda_subnet_id = get_vpc_and_subnets_from_lambda(function_name)
+    nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
+    describe_and_replace_route(lambda_subnet_id, nat_gateway_id)
+    logger.info("Route replacement succeeded")
+    return False
+
+
 def handler(event, _):
     subnet_suffix = os.getenv("PRIVATE_SUBNET_SUFFIX", DEFAULT_SUBNET_SUFFIX)
 
@@ -320,25 +357,18 @@ def connectivity_test_handler(event, context):
 
     logger.info("Starting NAT instance connectivity test")
 
-    try:
-        requests.get("https://www.example.com", timeout=5)
-        logger.info("Successfully connected to www.example.com")
-        return
-    except requests.exceptions.RequestException as error:
-        logger.error("alternat-connectivity-test error connecting to example.com: %s", error)
+    check_interval = int(os.getenv("CONNECTIVITY_CHECK_INTERVAL", DEFAULT_CONNECTIVITY_CHECK_INTERVAL))
+    check_urls = os.getenv("CHECK_URLS", DEFAULT_CHECK_URLS)
 
-    try:
-        requests.get("https://www.google.com", timeout=5)
-        logger.info("Successfully connected to www.google.com")
-        return
-    except requests.exceptions.RequestException as error:
-        logger.error("alternat-connectivity-test error connecting to google.com: %s", error)
-
-    logger.warning("Failed connectivity tests! Replacing route")
-
-    vpc_id, public_subnet_id, lambda_subnet_id = get_vpc_and_subnets_from_lambda(context.function_name)
-    nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
-    describe_and_replace_route(lambda_subnet_id, nat_gateway_id)
+    # Run connectivity checks for approximately 1 minute
+    run = 0
+    num_runs = 60 / check_interval
+    while run < num_runs:
+        if check_connection(context.function_name, check_urls):
+            time.sleep(check_interval)
+            run += 1
+        else:
+            break
 
 
 class UnknownEventTypeError(Exception): pass
