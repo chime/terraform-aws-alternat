@@ -41,7 +41,7 @@ locals {
 
   endpoints = merge(local.ec2_endpoint, local.lambda_endpoint)
 
-  reuse_nat_instance_eips = try(length(var.nat_instance_eip_ids), 0) > 0 && var.nat_instance_eip_ids == length(var.vpc_public_subnet_ids)
+  reuse_nat_instance_eips = try(length(var.nat_instance_eip_ids), 0) > 0 && length(var.nat_instance_eip_ids) == length(var.vpc_public_subnet_ids)
   nat_instance_eip_ids    = local.reuse_nat_instance_eips ? var.nat_instance_eip_ids : aws_eip.nat_instance_eips[*].id
 }
 
