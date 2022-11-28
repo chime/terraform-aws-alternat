@@ -8,6 +8,7 @@ resource "aws_lambda_function" "alternat_autoscaling_hook" {
   environment {
     variables = {
       PRIVATE_SUBNET_SUFFIX = var.subnet_suffix
+      CHECK_URLS            = var.connectivity_test_check_urls
     }
   }
   tags = merge({

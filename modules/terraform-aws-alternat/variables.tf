@@ -19,6 +19,12 @@ variable "autoscaling_hook_function_name" {
   default     = "alternat-autoscaling-hook"
 }
 
+variable "connectivity_test_check_urls" {
+  description = "List of URLs to check with the connectivity tester function."
+  type        = list(string)
+  default     = ["https://www.example.com", "https://www.google.com"]
+}
+
 variable "connectivity_test_event_rule_name" {
   description = "The name to use for the event rule that invokes the connectivity test Lambda function."
   type        = string
@@ -130,15 +136,15 @@ variable "nat_instance_eip_ids" {
   default     = []
 }
 
+variable "private_route_table_ids" {
+  description = "A list of private route tables that the NAT instances will manage."
+  type        = list(string)
+}
+
 variable "subnet_suffix" {
   description = "Suffix in the NAT private subnet name to search for when updating routes via HA NAT Lambda functions."
   type        = string
   default     = "private"
-}
-
-variable "private_route_table_ids" {
-  description = "A list of private route tables that the NAT instances will manage."
-  type        = list(string)
 }
 
 variable "tags" {
