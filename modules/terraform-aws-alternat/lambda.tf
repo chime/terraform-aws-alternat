@@ -8,7 +8,6 @@ resource "aws_lambda_function" "alternat_autoscaling_hook" {
   environment {
     variables = {
       PRIVATE_SUBNET_SUFFIX = var.subnet_suffix
-      CHECK_URLS            = var.connectivity_test_check_urls
     }
   }
   tags = merge({
@@ -118,6 +117,12 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
   }
 
   role = aws_iam_role.nat_lambda_role.arn
+
+  environment {
+    variables = {
+      CHECK_URLS = join(",", var.connectivity_test_check_urls)
+    }
+  }
 
   vpc_config {
     subnet_ids         = [var.vpc_private_subnet_ids[count.index]]
