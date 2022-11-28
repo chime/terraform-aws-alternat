@@ -358,7 +358,7 @@ def connectivity_test_handler(event, context):
     logger.info("Starting NAT instance connectivity test")
 
     check_interval = int(os.getenv("CONNECTIVITY_CHECK_INTERVAL", DEFAULT_CONNECTIVITY_CHECK_INTERVAL))
-    check_urls = os.getenv("CHECK_URLS", DEFAULT_CHECK_URLS).split(",")
+    check_urls = "CHECK_URLS" in os.environ and os.getenv("CHECK_URLS").split(",") or DEFAULT_CHECK_URLS
 
     # Run connectivity checks for approximately 1 minute
     run = 0
