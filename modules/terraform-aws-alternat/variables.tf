@@ -7,6 +7,17 @@ variable "additional_instance_policies" {
   default = []
 }
 
+variable "alternat_image_tag" {
+  description = "The tag of the container image for the HA NAT Lambda functions."
+  type        = string
+  default     = "latest"
+}
+
+variable "alternat_image_uri" {
+  description = "The URI of the container image for the HA NAT Lambda functions."
+  type        = string
+}
+
 variable "architecture" {
   description = "Architecture of the NAT instance image. Must be compatible with nat_instance_type."
   type        = string
@@ -55,21 +66,16 @@ variable "enable_ssm" {
   default     = true
 }
 
-variable "alternat_image_tag" {
-  description = "The tag of the container image for the HA NAT Lambda functions."
-  type        = string
-  default     = "latest"
-}
-
-variable "alternat_image_uri" {
-  description = "The URI of the container image for the HA NAT Lambda functions."
-  type        = string
-}
-
 variable "ingress_security_group_ids" {
   description = "A list of security group IDs that are allowed by the NAT instance."
   type        = list(string)
   default     = []
+}
+
+variable "lifecycle_heartbeat_timeout" {
+  description = "The length of time, in seconds, that autoscaled NAT instances should wait in the terminate state before being fully terminated."
+  type        = number
+  default     = 180
 }
 
 variable "max_instance_lifetime" {
@@ -136,34 +142,23 @@ variable "nat_instance_eip_ids" {
   default     = []
 }
 
-variable "private_route_table_ids" {
-  description = "A list of private route tables that the NAT instances will manage."
-  type        = list(string)
-}
-
-variable "subnet_suffix" {
-  description = "Suffix in the NAT private subnet name to search for when updating routes via HA NAT Lambda functions."
-  type        = string
-  default     = "private"
-}
-
 variable "tags" {
   description = "A map of tags to add to all supported resources managed by the module."
   type        = map(string)
   default     = {}
 }
 
+variable "vpc_az_maps" {
+  description = "A map of az to private route tables that the NAT instances will manage."
+  type = list(object({
+    az                 = string
+    private_subnet_ids = list(string)
+    public_subnet_id   = string
+    route_table_ids    = list(string)
+  }))
+}
+
 variable "vpc_id" {
   description = "The ID of the VPC."
   type        = string
-}
-
-variable "vpc_private_subnet_ids" {
-  description = "A list of private subnets IDs inside the VPC."
-  type        = list(any)
-}
-
-variable "vpc_public_subnet_ids" {
-  description = "A list of public subnets IDs inside the VPC."
-  type        = list(any)
 }

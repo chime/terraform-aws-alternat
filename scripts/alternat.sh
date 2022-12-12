@@ -9,8 +9,27 @@ shopt -s expand_aliases
 
 panic() {
   [ -n "$1" ] && echo "$1"
-  echo "HA NAT setup failed"
+  echo "alterNAT setup failed"
   exit 1
+}
+
+load_config() {
+   if [ -f "$CONFIG_FILE" ]; then
+      . "$CONFIG_FILE"
+   else
+      panic "Config file $CONFIG_FILE not found"
+   fi
+   validate_var "eip_allocation_ids_csv" "$eip_allocation_ids_csv"
+   validate_var "route_table_ids_csv" "$route_table_ids_csv"
+}
+
+validate_var() {
+   var_name="$1"
+   var_val="$2"
+   if [ ! "$2" ]; then
+      echo "Config var "$var_name" is unset"
+      exit 1
+   fi
 }
 
 # configure_nat() sets up Linux to act as a NAT device.
@@ -50,6 +69,9 @@ configure_nat() {
 disable_source_dest_check() {
    echo "Disabling source/destination check"
    aws ec2 modify-instance-attribute --instance-id $INSTANCE_ID --source-dest-check "{\"Value\": false}"
+   if [ $? -ne 0 ]; then
+      panic "Unable to disable source/dest check."
+   fi
    echo "source/destination check disabled for $INSTANCE_ID"
 }
 
@@ -62,13 +84,12 @@ function associate_eip() {
    local num_retries=10
    local sleep_len=60
 
-   IFS=',' read -r -a eip_allocation_ids <<< "${tf_eip_allocation_ids}"
+   IFS=',' read -r -a eip_allocation_ids <<< "${eip_allocation_ids_csv}"
 
    # Retry the allocation operation $num_retries times with a $sleep_len wait between retries.
    # This is to handle any delays in releasing an EIP allocation during instance termination.
    for n in $(seq 1 "$num_retries"); do
-      # $$ is the interpolation escape sequence in Terraform templates.
-      for eip_allocation_id in "$${eip_allocation_ids[@]}"
+      for eip_allocation_id in "${eip_allocation_ids[@]}"
       do
          eip=$(aws ec2 describe-addresses --allocation-ids "$eip_allocation_id" --query 'Addresses[0].PublicIp' | tr -d '"')
          echo "Trying IP $eip"
@@ -94,40 +115,43 @@ function associate_eip() {
    echo "Associated EIP $eip with instance $INSTANCE_ID";
 }
 
-# configure_route_table() assumes that route tables for the private subnets have a
-# name of the form $VpcName-$Suffix-$AzName
 # First try to replace an existing route
 # If no route exists already (e.g. first time set up) then create the route.
 configure_route_table() {
-   echo "Configuring route table"
+   echo "Configuring route tables"
 
-   echo "Discovering availability zone"
-   AZ=$(CURL_WITH_TOKEN "$II_URI" | grep availabilityZone | awk -F\" '{print $4}')
+   IFS=',' read -r -a route_table_ids <<< "${route_table_ids_csv}"
 
-   echo "Discovering route table"
-   local rtb_id=$(aws ec2 describe-route-tables --filters Name=vpc-id,Values=${tf_vpc_id} Name=tag:Name,Values=*"${tf_subnet_suffix}"-"$AZ" --query 'RouteTables[0].RouteTableId' | tr -d '"')
+   for route_table_id in "${route_table_ids[@]}"
+   do
+      echo "Attempting to find route table $route_table_id"
+      local rtb_id=$(aws ec2 describe-route-tables --filters Name=route-table-id,Values=${route_table_id} --query 'RouteTables[0].RouteTableId' | tr -d '"')
+      if [ -z "$rtb_id" ]; then
+         panic "Unable to find route table $rtb_id"
+      fi
 
-   if [ -z "$rtb_id" ]; then
-      panic "Unable to find a route table to update!"
-   fi
+      echo "Found route table $rtb_id"
+      echo "Replacing route to 0.0.0.0/0 for $rtb_id"
+      aws ec2 replace-route --route-table-id "$rtb_id" --instance-id "$INSTANCE_ID" --destination-cidr-block 0.0.0.0/0
+      if [ $? -eq 0 ]; then
+         echo "Successfully replaced route to 0.0.0.0/0 via instance $INSTANCE_ID for route table $rtb_id"
+         continue
+      fi
 
-   echo "Found route table $rtb_id"
-   echo "Replacing route to 0.0.0.0/0 for $rtb_id"
-   aws ec2 replace-route --route-table-id "$rtb_id" --instance-id "$INSTANCE_ID" --destination-cidr-block 0.0.0.0/0
-   if [ $? -eq 0 ]; then
-      echo "Successfully replaced route to 0.0.0.0/0 via instance $INSTANCE_ID for route table $rtb_id"
-      return
-   fi
-
-   echo "Unable to replace route. Attempting to create route"
-   aws ec2 create-route --route-table-id "$rtb_id" --instance-id "$INSTANCE_ID" --destination-cidr-block 0.0.0.0/0
-   if [ $? -eq 0 ]; then
-      echo "Successfully created route to 0.0.0.0/0 via instance $INSTANCE_ID for route table $rtb_id"
-      return
-   fi
-
-   panic "Unable to set up the route!"
+      echo "Unable to replace route. Attempting to create route"
+      aws ec2 create-route --route-table-id "$rtb_id" --instance-id "$INSTANCE_ID" --destination-cidr-block 0.0.0.0/0
+      if [ $? -eq 0 ]; then
+         echo "Successfully created route to 0.0.0.0/0 via instance $INSTANCE_ID for route table $rtb_id"
+      else
+         panic "Unable to replace or create the route!"
+      fi
+   done
 }
+
+# alterNAT config file containing inputs needed for initialization
+CONFIG_FILE="/etc/alternat.conf"
+
+load_config
 
 curl_cmd="curl --silent --fail"
 
