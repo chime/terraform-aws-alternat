@@ -123,24 +123,37 @@ docker push <your_registry_url>/<your_repo:<release tag or short git commit sha>
 Start by reviewing the available [input variables](modules/terraform-aws-alternat/variables.tf). Example usage:
 
 ```
+locals {
+  vpc_az_maps = [
+    for index, rt in module.vpc.private_route_table_ids
+    : {
+      az                 = data.aws_subnet.subnet[index].availability_zone
+      route_table_ids    = [rt]
+      public_subnet_id   = module.vpc.public_subnets[index]
+      private_subnet_ids = [module.vpc.private_subnets[index]]
+    }
+  ]
+}
+
+data "aws_subnet" "subnet" {
+  count = length(module.vpc.private_subnets)
+  id    = module.vpc.private_subnets[count.index]
+}
+
 module "alternat_instances" {
-  source = "git::https://github.com/1debit/alternat.git//modules/terraform-aws-alternat?ref=v0.1.0"
+  source = "git::https://github.com/1debit/alternat.git//modules/terraform-aws-alternat?ref=v0.2.0"
 
   alternat_image_uri = "0123456789012.dkr.ecr.us-east-1.amazonaws.com/alternat-functions-lambda"
-  alternat_image_tag = "v0.1.0"
+  alternat_image_tag = "v0.2.0"
 
   ingress_security_group_ids = var.ingress_security_group_ids
 
-  subnet_suffix = var.nat_subnet_suffix
-
-  private_route_table_ids = module.vpc.private_route_table_ids
-
   tags = var.tags
 
-  vpc_id                 = module.vpc.vpc_id
-  vpc_private_subnet_ids = module.vpc.private_subnets
-  vpc_public_subnet_ids  = module.vpc.public_subnets
+  vpc_id      = module.vpc.vpc_id
+  vpc_az_maps = local.vpc_az_maps
 }
+
 ```
 
 Feel free to submit a pull request or create an issue if you need an input or output that isn't available.
@@ -161,10 +174,6 @@ While we'd like for this to be available on the Terraform Registry, it requires 
 
 > Typically, instances with 16 vCPUs or fewer (size 4xlarge and smaller) are documented as having "up to" a specified bandwidth; for example, "up to 10 Gbps". These instances have a baseline bandwidth. To meet additional demand, they can use a network I/O credit mechanism to burst beyond their baseline bandwidth. Instances can use burst bandwidth for a limited time, typically from 5 to 60 minutes, depending on the instance size.
 
-- The code is currently constrained to a 1:1 relationship of public subnets to private subnets. Each provided public subnet should correspond to a single private subnet in the same zone.
-
-- The `subnet_suffix` is used to match the name of the private subnet and subsequently update the corresponding route table. The suffix of the private subnet names must match `<subnet suffix>-<availability zone>`. For example, `my-foo-vpc-private-us-east-1a`. This is the default used by the [terraform-aws-vpc module](https://github.com/terraform-aws-modules/terraform-aws-vpc/blob/6a3a9bde634e2147205273337b1c22e4d94ad6ff/main.tf#L402).
-
 - [SSM Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html) is enabled by default. To view NAT connections on an instance, use sessions manager to connect, then run `sudo cat /proc/net/nf_conntrack`. Disable SSM by setting `enable_ssm=false`.
 
 - We intentionally use `most_recent=true` for the Amazon Linux 2 AMI. This helps to ensure that the latest AMI is used in the ASG launch template. If a new AMI is available when you run `terraform apply`, the launch template will be updated with the latest AMI. The new AMI will be launched automatically when the maximum instance lifetime is reached.
@@ -179,7 +188,6 @@ While we'd like for this to be available on the Terraform Registry, it requires 
 We would like this benefit to benefit as many users as possible. Possible future enhancements include:
 
 - CloudFormation implementation
-- AWS CDK implementation
 - Pulumi implementation
 - Support for maintenance windows
 - Addition of a CloudWatch dashboard
