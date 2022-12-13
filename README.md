@@ -194,7 +194,7 @@ We would like this benefit to benefit as many users as possible. Possible future
 
 ## Contributing
 
-[Issues](https://github.com/issues) and [pull requests](https://github.com/1debit/alternat/pulls) are most welcome!
+[Issues](https://github.com/1debit/alternat/issues) and [pull requests](https://github.com/1debit/alternat/pulls) are most welcome!
 
 alterNAT is intended to be a safe, welcoming space for collaboration. Contributors are expected to adhere to the [Contributor Covenant code of conduct](CODE_OF_CONDUCT.md).
 
