@@ -27,7 +27,7 @@ validate_var() {
    var_name="$1"
    var_val="$2"
    if [ ! "$2" ]; then
-      echo "Config var "$var_name" is unset"
+      echo "Config var \"$var_name\" is unset"
       exit 1
    fi
 }
