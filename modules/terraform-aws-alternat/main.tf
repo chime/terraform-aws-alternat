@@ -4,7 +4,7 @@ locals {
     {
       name                    = "NATInstanceTerminationLifeCycleHook"
       default_result          = "CONTINUE"
-      heartbeat_timeout       = 180
+      heartbeat_timeout       = var.lifecycle_heartbeat_timeout
       lifecycle_transition    = "autoscaling:EC2_INSTANCE_TERMINATING"
       notification_target_arn = aws_sns_topic.alternat_topic.arn
       role_arn                = aws_iam_role.alternat_lifecycle_hook.arn
@@ -13,40 +13,46 @@ locals {
 
   nat_instance_ingress_sgs = concat(var.ingress_security_group_ids, [aws_security_group.nat_lambda.id])
 
+  all_route_tables = flatten([
+    for obj in var.vpc_az_maps : obj.route_table_ids
+  ])
+
+  # One private subnet in each AZ to use for the VPC endpoints
+  az_private_subnets = [for obj in var.vpc_az_maps : element(obj.private_subnet_ids, 0)]
   ec2_endpoint = (
     var.enable_ec2_endpoint
     ? {
       ec2 = {
         service             = "ec2"
         private_dns_enabled = true
-        subnet_ids          = var.vpc_private_subnet_ids
+        subnet_ids          = local.az_private_subnets
         tags                = { Name = "ec2-vpc-endpoint" }
       }
     }
     : {}
   )
-
   lambda_endpoint = (
     var.enable_lambda_endpoint
     ? {
       lambda = {
         service             = "lambda"
         private_dns_enabled = true
-        subnet_ids          = var.vpc_private_subnet_ids
+        subnet_ids          = local.az_private_subnets
         tags                = { Name = "lambda-vpc-endpoint" }
       }
     }
     : {}
   )
-
   endpoints = merge(local.ec2_endpoint, local.lambda_endpoint)
 
-  reuse_nat_instance_eips = length(var.nat_instance_eip_ids) == length(var.vpc_public_subnet_ids) # var.nat_instance_eip_ids ignored if doesn't match subnet count
+  # Must provide exactly 1 EIP per AZ
+  # var.nat_instance_eip_ids ignored if doesn't match AZ count
+  reuse_nat_instance_eips = length(var.nat_instance_eip_ids) == length(var.vpc_az_maps)
   nat_instance_eip_ids    = local.reuse_nat_instance_eips ? var.nat_instance_eip_ids : aws_eip.nat_instance_eips[*].id
 }
 
 resource "aws_eip" "nat_instance_eips" {
-  count = local.reuse_nat_instance_eips ? 0 : length(var.vpc_public_subnet_ids)
+  count = local.reuse_nat_instance_eips ? 0 : length(var.vpc_az_maps)
 
   vpc = true
   tags = merge(var.tags, {
@@ -61,17 +67,16 @@ resource "aws_sns_topic" "alternat_topic" {
 }
 
 resource "aws_autoscaling_group" "nat_instance" {
-  count = length(var.vpc_public_subnet_ids)
+  for_each = { for obj in var.vpc_az_maps : obj.az => obj.public_subnet_id }
 
   name_prefix           = var.nat_instance_name_prefix
   max_size              = 1
   min_size              = 1
-  desired_capacity      = 1
   max_instance_lifetime = var.max_instance_lifetime
-  vpc_zone_identifier   = [var.vpc_public_subnet_ids[count.index]]
+  vpc_zone_identifier   = [each.value]
 
   launch_template {
-    id      = aws_launch_template.nat_instance_template.id
+    id      = aws_launch_template.nat_instance_template[each.key].id
     version = "$Latest"
   }
 
@@ -91,7 +96,7 @@ resource "aws_autoscaling_group" "nat_instance" {
   dynamic "tag" {
     for_each = merge(
       var.tags,
-      { Name = "${var.nat_instance_name_prefix}${count.index}" },
+      { Name = "${var.nat_instance_name_prefix}${each.key}" },
       data.aws_default_tags.current.tags,
     )
 
@@ -144,9 +149,6 @@ resource "aws_iam_role_policy" "alternat_lifecycle_hook" {
 }
 
 
-data "aws_region" "current" {}
-data "aws_caller_identity" "current" {}
-
 data "aws_ami" "amazon_linux_2" {
   most_recent = true
   owners      = ["amazon"]
@@ -167,7 +169,27 @@ data "aws_ami" "amazon_linux_2" {
   }
 }
 
+data "template_cloudinit_config" "config" {
+  for_each = { for obj in var.vpc_az_maps : obj.az => obj.route_table_ids }
+
+  gzip          = true
+  base64_encode = true
+  part {
+    content_type = "text/x-shellscript"
+    content = templatefile("${path.module}/alternat.conf.tftpl", {
+      eip_allocation_ids_csv = join(",", local.nat_instance_eip_ids),
+      route_table_ids_csv    = join(",", each.value)
+    })
+  }
+  part {
+    content_type = "text/x-shellscript"
+    content      = file("${path.module}/../../scripts/alternat.sh")
+  }
+}
+
 resource "aws_launch_template" "nat_instance_template" {
+  for_each = { for obj in var.vpc_az_maps : obj.az => obj.route_table_ids }
+
   block_device_mappings {
     device_name = "/dev/sda1"
 
@@ -211,11 +233,7 @@ resource "aws_launch_template" "nat_instance_template" {
     })
   }
 
-  user_data = base64encode(templatefile("${path.module}/alternat.sh.tftpl", {
-    tf_eip_allocation_ids = join(",", local.nat_instance_eip_ids),
-    tf_subnet_suffix      = var.subnet_suffix,
-    tf_vpc_id             = var.vpc_id
-  }))
+  user_data = data.template_cloudinit_config.config[each.key].rendered
 }
 
 resource "aws_security_group" "nat_instance" {
@@ -319,7 +337,7 @@ data "aws_iam_policy_document" "alternat_ec2_policy" {
       "ec2:ReplaceRoute"
     ]
     resources = [
-      for route_table in var.private_route_table_ids
+      for route_table in local.all_route_tables
       : "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.id}:route-table/${route_table}"
     ]
   }
@@ -353,19 +371,19 @@ resource "aws_iam_role_policy" "alternat_additional_policies" {
 
 ## NAT Gateway used as a backup route
 resource "aws_eip" "nat_gateway_eips" {
-  count = length(var.vpc_public_subnet_ids)
-  vpc   = true
+  for_each = { for obj in var.vpc_az_maps : obj.az => obj.public_subnet_id }
+  vpc      = true
   tags = merge(var.tags, {
-    "Name" = "alternat-gateway-${count.index}"
+    "Name" = "alternat-gateway-eip"
   })
 }
 
 resource "aws_nat_gateway" "main" {
-  count         = length(var.vpc_public_subnet_ids)
-  allocation_id = aws_eip.nat_gateway_eips[count.index].id
-  subnet_id     = var.vpc_public_subnet_ids[count.index]
+  for_each      = { for obj in var.vpc_az_maps : obj.az => obj.public_subnet_id }
+  allocation_id = aws_eip.nat_gateway_eips[each.key].id
+  subnet_id     = each.value
   tags = merge(var.tags, {
-    Name = "alternat-${count.index}"
+    Name = "alternat-${each.key}"
   })
 }
 
@@ -411,3 +429,5 @@ module "vpc_endpoints" {
 }
 
 data "aws_default_tags" "current" {}
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
