@@ -13,39 +13,36 @@ locals {
 
   nat_instance_ingress_sgs = concat(var.ingress_security_group_ids, [aws_security_group.nat_lambda.id])
 
-  all_private_subnets = flatten([
-    for obj in var.vpc_az_maps : obj.private_subnet_ids
-  ])
   all_route_tables = flatten([
     for obj in var.vpc_az_maps : obj.route_table_ids
   ])
 
+  # One private subnet in each AZ to use for the VPC endpoints
+  az_private_subnets = [for obj in var.vpc_az_maps : element(obj.private_subnet_ids, 0)]
   ec2_endpoint = (
     var.enable_ec2_endpoint
     ? {
       ec2 = {
         service             = "ec2"
         private_dns_enabled = true
-        subnet_ids          = local.all_private_subnets
+        subnet_ids          = local.az_private_subnets
         tags                = { Name = "ec2-vpc-endpoint" }
       }
     }
     : {}
   )
-
   lambda_endpoint = (
     var.enable_lambda_endpoint
     ? {
       lambda = {
         service             = "lambda"
         private_dns_enabled = true
-        subnet_ids          = local.all_private_subnets
+        subnet_ids          = local.az_private_subnets
         tags                = { Name = "lambda-vpc-endpoint" }
       }
     }
     : {}
   )
-
   endpoints = merge(local.ec2_endpoint, local.lambda_endpoint)
 
   # Must provide exactly 1 EIP per AZ
