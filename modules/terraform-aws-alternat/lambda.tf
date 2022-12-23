@@ -146,7 +146,7 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
   source_code_hash = var.lambda_package_type == "Zip" ? base64sha256(filebase64(var.lambda_zip_path)) : null
 
   dynamic "image_config" {
-    for_each = var.lambda_package_type == "Image" ? [var.lambda_image_config] : []
+    for_each = var.lambda_package_type == "Image" ? [var.lambda_image_config.connectivity_tester] : []
 
     content {
       command = image_config.value.command

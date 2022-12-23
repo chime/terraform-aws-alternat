@@ -190,10 +190,20 @@ variable "lambda_handler" {
 variable "lambda_image_config" {
   description = "Container image configuration values that override the values in the container image Dockerfile."
   type = object({
-    command : optional(list(string)),
+    connectivity_tester : {
+      command : optional(list(string)),
+    }
+    alternat_autoscaling_hook : {
+      command : optional(list(string)),
+    }
   })
   default = {
-    command : ["app.connectivity_test_handler"],
+    connectivity_tester : {
+      command : ["app.connectivity_test_handler"],
+    }
+    alternat_autoscaling_hook : {
+      command : ["app.handler"],
+    }
   }
   nullable = false
 }
