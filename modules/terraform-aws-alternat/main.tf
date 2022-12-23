@@ -169,7 +169,7 @@ data "aws_ami" "amazon_linux_2" {
   }
 }
 
-data "template_cloudinit_config" "config" {
+data "cloudinit_config" "config" {
   for_each = { for obj in var.vpc_az_maps : obj.az => obj.route_table_ids }
 
   gzip          = true
@@ -233,7 +233,7 @@ resource "aws_launch_template" "nat_instance_template" {
     })
   }
 
-  user_data = data.template_cloudinit_config.config[each.key].rendered
+  user_data = data.cloudinit_config.config[each.key].rendered
 }
 
 resource "aws_security_group" "nat_instance" {
