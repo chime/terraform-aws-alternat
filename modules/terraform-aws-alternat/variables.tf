@@ -121,7 +121,7 @@ variable "nat_instance_sg_name_prefix" {
 }
 
 variable "nat_lambda_function_role_name" {
-  description = "Name ot use for the IAM role used by the replace-route Lambda function. Must be globally unique in this AWS account."
+  description = "Name to use for the IAM role used by the replace-route Lambda function. Must be globally unique in this AWS account."
   type        = string
   default     = ""
 }
@@ -161,4 +161,50 @@ variable "vpc_az_maps" {
 variable "vpc_id" {
   description = "The ID of the VPC."
   type        = string
+}
+
+variable "lambda_package_type" {
+  description = "The lambda deployment package type. Valid values are \"Zip\" and \"Image\". Defaults to \"Image\"."
+  type        = string
+  default     = "Image"
+  nullable    = false
+}
+
+variable "lambda_memory_size" {
+  description = "Amount of memory in MB your Lambda Function can use at runtime. Defaults to 256."
+  type        = number
+  default     = 256
+}
+
+variable "lambda_timeout" {
+  description = "Amount of time your Lambda Function has to run in seconds. Defaults to 300."
+  type        = number
+  default     = 300
+}
+variable "lambda_handler" {
+  description = "The name of the handler to use for the lambda function. Required when `lambda_package_type` is \"Zip\"."
+  type        = string
+  default     = "app.handler"
+}
+
+variable "lambda_image_config" {
+  description = "Container image configuration values that override the values in the container image Dockerfile."
+  type = object({
+    command : optional(list(string)),
+  })
+  default = {
+    command : ["app.connectivity_test_handler"],
+  }
+  nullable = false
+}
+
+variable "lambda_environment_variables" {
+  description = "Environment variables to be provided to the lambda function."
+  type        = map(string)
+  default     = null
+}
+variable "lambda_zip_path" {
+  description = "The location where the generated zip file should be stored. Required when `lambda_package_type` is \"Zip\"."
+  type        = string
+  default     = "/tmp/alternat-lambda.zip"
 }
