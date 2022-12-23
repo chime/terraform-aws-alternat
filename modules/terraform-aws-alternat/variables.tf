@@ -181,31 +181,17 @@ variable "lambda_timeout" {
   type        = number
   default     = 300
 }
-variable "lambda_handler" {
-  description = "The name of the handler to use for the lambda function. Required when `lambda_package_type` is \"Zip\"."
-  type        = string
-  default     = "app.handler"
-}
 
-variable "lambda_image_config" {
-  description = "Container image configuration values that override the values in the container image Dockerfile."
+variable "lambda_handlers" {
+  description = "Lambda handlers."
   type = object({
-    connectivity_tester : {
-      command : optional(list(string)),
-    }
-    alternat_autoscaling_hook : {
-      command : optional(list(string)),
-    }
+    connectivity_tester       = string,
+    alternat_autoscaling_hook = string,
   })
   default = {
-    connectivity_tester : {
-      command : ["app.connectivity_test_handler"],
-    }
-    alternat_autoscaling_hook : {
-      command : ["app.handler"],
-    }
+    connectivity_tester       = "app.connectivity_test_handler",
+    alternat_autoscaling_hook = "app.handler"
   }
-  nullable = false
 }
 
 variable "lambda_environment_variables" {

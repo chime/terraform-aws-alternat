@@ -30,12 +30,12 @@ resource "aws_lambda_function" "alternat_autoscaling_hook" {
   image_uri = var.lambda_package_type == "Image" ? "${var.alternat_image_uri}:${var.alternat_image_tag}" : null
 
   runtime          = var.lambda_package_type == "Zip" ? "python3.8" : null
-  handler          = var.lambda_package_type == "Zip" ? var.lambda_handler : null
-  filename         = var.lambda_package_type == "Zip" ? data.archive_file.lambda.output_path : null
-  source_code_hash = var.lambda_package_type == "Zip" ? base64sha256(filebase64(var.lambda_zip_path)) : null
+  handler          = var.lambda_package_type == "Zip" ? var.lambda_handlers.alternat_autoscaling_hook : null
+  filename         = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_path : null
+  source_code_hash = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_base64sha256 : null
 
   environment {
-    variables = concat(local.autoscaling_func_env_vars, var.lambda_environment_variables)
+    variables = merge(local.autoscaling_func_env_vars, var.lambda_environment_variables)
   }
 
   tags = merge({
@@ -141,20 +141,20 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
   image_uri = var.lambda_package_type == "Image" ? "${var.alternat_image_uri}:${var.alternat_image_tag}" : null
 
   runtime          = var.lambda_package_type == "Zip" ? "python3.8" : null
-  handler          = var.lambda_package_type == "Zip" ? var.lambda_handler : null
-  filename         = var.lambda_package_type == "Zip" ? data.archive_file.lambda.output_path : null
-  source_code_hash = var.lambda_package_type == "Zip" ? base64sha256(filebase64(var.lambda_zip_path)) : null
+  handler          = var.lambda_package_type == "Zip" ? var.lambda_handlers.connectivity_tester : null
+  filename         = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_path : null
+  source_code_hash = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_base64sha256 : null
 
   dynamic "image_config" {
-    for_each = var.lambda_package_type == "Image" ? [var.lambda_image_config.connectivity_tester] : []
+    for_each = var.lambda_package_type == "Image" ? [var.lambda_handlers.connectivity_tester] : []
 
     content {
-      command = image_config.value.command
+      command = [image_config.value]
     }
   }
 
   environment {
-    variables = concat({
+    variables = merge({
       ROUTE_TABLE_IDS_CSV = join(",", each.value.route_table_ids),
       PUBLIC_SUBNET_ID    = each.value.public_subnet_id
       CHECK_URLS          = join(",", var.connectivity_test_check_urls)
