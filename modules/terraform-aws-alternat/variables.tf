@@ -168,6 +168,11 @@ variable "lambda_package_type" {
   type        = string
   default     = "Image"
   nullable    = false
+
+  validation {
+    condition     = contains(["Zip", "Image"], var.lambda_package_type)
+    error_message = "Must be a supported package type: \"Zip\" or \"Image\"."
+  }
 }
 
 variable "lambda_memory_size" {
@@ -199,6 +204,7 @@ variable "lambda_environment_variables" {
   type        = map(string)
   default     = null
 }
+
 variable "lambda_zip_path" {
   description = "The location where the generated zip file should be stored. Required when `lambda_package_type` is \"Zip\"."
   type        = string
