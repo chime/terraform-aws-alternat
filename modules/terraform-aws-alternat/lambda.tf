@@ -1,17 +1,46 @@
+resource "null_resource" "prepare_artifact" {
+  count = var.lambda_package_type == "Zip" ? 1 : 0
+
+  triggers = {
+    dependencies_versions = filemd5("${path.module}/../../functions/replace-route/requirements.txt")
+  }
+
+  provisioner "local-exec" {
+    command = "pip install -r ${path.module}/../../functions/replace-route/requirements.txt -t ${path.module}/../../functions/replace-route"
+  }
+}
+
+data "archive_file" "lambda" {
+  count       = var.lambda_package_type == "Zip" ? 1 : 0
+  type        = "zip"
+  source_dir  = "${path.module}/../../functions/replace-route"
+  excludes    = ["__pycache__"]
+  output_path = var.lambda_zip_path
+  depends_on  = [null_resource.prepare_artifact]
+}
+
 # Lambda function for Auto Scaling Group Lifecycle Hook
 resource "aws_lambda_function" "alternat_autoscaling_hook" {
   function_name = var.autoscaling_hook_function_name
-  package_type  = "Image"
-  memory_size   = 256
-  image_uri     = "${var.alternat_image_uri}:${var.alternat_image_tag}"
+  package_type  = var.lambda_package_type
+  memory_size   = var.lambda_memory_size
+  timeout       = var.lambda_timeout
   role          = aws_iam_role.nat_lambda_role.arn
+
+  image_uri = var.lambda_package_type == "Image" ? "${var.alternat_image_uri}:${var.alternat_image_tag}" : null
+
+  runtime          = var.lambda_package_type == "Zip" ? "python3.8" : null
+  handler          = var.lambda_package_type == "Zip" ? var.lambda_handlers.alternat_autoscaling_hook : null
+  filename         = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_path : null
+  source_code_hash = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_base64sha256 : null
+
   environment {
-    variables = local.autoscaling_func_env_vars
+    variables = merge(local.autoscaling_func_env_vars, var.lambda_environment_variables)
   }
+
   tags = merge({
     FunctionName = "alternat-autoscaling-lifecycle-hook",
   }, var.tags)
-  timeout = 300
 }
 
 locals {
@@ -104,23 +133,32 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
   for_each = { for obj in var.vpc_az_maps : obj.az => obj }
 
   function_name = "${var.connectivity_tester_function_name}-${each.key}"
-  package_type  = "Image"
-  memory_size   = 256
-  timeout       = 300
-  image_uri     = "${var.alternat_image_uri}:${var.alternat_image_tag}"
+  package_type  = var.lambda_package_type
+  memory_size   = var.lambda_memory_size
+  timeout       = var.lambda_timeout
+  role          = aws_iam_role.nat_lambda_role.arn
 
-  image_config {
-    command = ["app.connectivity_test_handler"]
+  image_uri = var.lambda_package_type == "Image" ? "${var.alternat_image_uri}:${var.alternat_image_tag}" : null
+
+  runtime          = var.lambda_package_type == "Zip" ? "python3.8" : null
+  handler          = var.lambda_package_type == "Zip" ? var.lambda_handlers.connectivity_tester : null
+  filename         = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_path : null
+  source_code_hash = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_base64sha256 : null
+
+  dynamic "image_config" {
+    for_each = var.lambda_package_type == "Image" ? [var.lambda_handlers.connectivity_tester] : []
+
+    content {
+      command = [image_config.value]
+    }
   }
 
-  role = aws_iam_role.nat_lambda_role.arn
-
   environment {
-    variables = {
+    variables = merge({
       ROUTE_TABLE_IDS_CSV = join(",", each.value.route_table_ids),
       PUBLIC_SUBNET_ID    = each.value.public_subnet_id
       CHECK_URLS          = join(",", var.connectivity_test_check_urls)
-    }
+    }, var.lambda_environment_variables)
   }
 
   vpc_config {
