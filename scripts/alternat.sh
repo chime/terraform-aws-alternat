@@ -62,7 +62,7 @@ configure_nat() {
    for cidr in "${vpc_cidrs[@]}";
    do
       (iptables -t nat -C POSTROUTING -o eth0 -s "$cidr" -j MASQUERADE 2> /dev/null ||
-      iptables -t nat -A POSTROUTING -o eth0 -s "$cidr" -j MASQUERADE ) ||
+      iptables -t nat -A POSTROUTING -o eth0 -s "$cidr" -j MASQUERADE) ||
       panic
    done
 
