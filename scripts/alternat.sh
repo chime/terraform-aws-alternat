@@ -41,22 +41,30 @@ configure_nat() {
    local eth0_mac="$(cat /sys/class/net/eth0/address)" || panic "Unable to determine MAC address on eth0."
    echo "Found MAC $eth0_mac for eth0."
 
-   local vpc_cidr_uri="http://169.254.169.254/latest/meta-data/network/interfaces/macs/$eth0_mac/vpc-ipv4-cidr-block"
-   echo "Metadata location for vpc ipv4 range: $vpc_cidr_uri"
+   local vpc_cidr_uri="http://169.254.169.254/latest/meta-data/network/interfaces/macs/$eth0_mac/vpc-ipv4-cidr-blocks"
+   echo "Metadata location for vpc ipv4 ranges: $vpc_cidr_uri"
 
-   local vpc_cidr_range=$(CURL_WITH_TOKEN "$vpc_cidr_uri")
+   local vpc_cidr_ranges=$(CURL_WITH_TOKEN "$vpc_cidr_uri")
    if [ $? -ne 0 ]; then
       panic "Unable to obtain VPC CIDR range from metadata."
    else
-      echo "Retrieved VPC CIDR range $vpc_cidr_range from metadata."
+      echo "Retrieved VPC CIDR range(s) $vpc_cidr_ranges from metadata."
    fi
+
+   IFS=' ' read -r -a vpc_cidrs <<< $(echo "$vpc_cidr_ranges")
 
    echo "Enabling NAT..."
    # Read more about these settings here: https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt
-   sysctl -q -w net.ipv4.ip_forward=1 net.ipv4.conf.eth0.send_redirects=0 net.ipv4.ip_local_port_range="1024 65535" && (
-      iptables -t nat -C POSTROUTING -o eth0 -s "$vpc_cidr_range" -j MASQUERADE 2> /dev/null ||
-      iptables -t nat -A POSTROUTING -o eth0 -s "$vpc_cidr_range" -j MASQUERADE ) ||
-          panic
+
+   sysctl -q -w net.ipv4.ip_forward=1 net.ipv4.conf.eth0.send_redirects=0 net.ipv4.ip_local_port_range="1024 65535" ||
+      panic
+
+   for cidr in "${vpc_cidrs[@]}";
+   do
+      (iptables -t nat -C POSTROUTING -o eth0 -s "$cidr" -j MASQUERADE 2> /dev/null ||
+      iptables -t nat -A POSTROUTING -o eth0 -s "$cidr" -j MASQUERADE ) ||
+      panic
+   done
 
    sysctl net.ipv4.ip_forward net.ipv4.conf.eth0.send_redirects net.ipv4.ip_local_port_range
    iptables -n -t nat -L POSTROUTING

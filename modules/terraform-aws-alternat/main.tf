@@ -391,6 +391,13 @@ data "aws_vpc" "vpc" {
   id = var.vpc_id
 }
 
+locals {
+  all_vpc_cidr_ranges = [
+    for cidr_assoc in data.aws_vpc.vpc.cidr_block_associations
+    : cidr_assoc.cidr_block
+  ]
+}
+
 resource "aws_security_group" "vpc_endpoint" {
   count = length(local.endpoints) > 0 ? 1 : 0
 
@@ -403,7 +410,7 @@ resource "aws_security_group" "vpc_endpoint" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = [data.aws_vpc.vpc.cidr_block]
+    cidr_blocks = local.all_vpc_cidr_ranges
   }
 
   egress {
