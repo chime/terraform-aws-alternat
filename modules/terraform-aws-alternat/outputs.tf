@@ -5,5 +5,9 @@ output "nat_instance_eips" {
 
 output "nat_gateway_eips" {
   description = "List of Elastic IP addresses used by the standby NAT gateways."
-  value       = [for eip in aws_eip.nat_gateway_eips : eip.public_ip]
+  value = [
+    for eip in aws_eip.nat_gateway_eips
+    : eip.public_ip
+    if var.create_nat_gateways
+  ]
 }
