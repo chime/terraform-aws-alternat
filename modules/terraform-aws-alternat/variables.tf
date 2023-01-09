@@ -30,6 +30,12 @@ variable "autoscaling_hook_function_name" {
   default     = "alternat-autoscaling-hook"
 }
 
+variable "create_nat_gateways" {
+  description = "Whether to create the NAT Gateway and the NAT Gateway EIP in this module. If false, you must create and manage NAT Gateways separately."
+  type        = bool
+  default     = true
+}
+
 variable "connectivity_test_check_urls" {
   description = "List of URLs to check with the connectivity tester function."
   type        = list(string)

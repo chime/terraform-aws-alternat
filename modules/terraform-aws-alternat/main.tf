@@ -371,15 +371,23 @@ resource "aws_iam_role_policy" "alternat_additional_policies" {
 
 ## NAT Gateway used as a backup route
 resource "aws_eip" "nat_gateway_eips" {
-  for_each = { for obj in var.vpc_az_maps : obj.az => obj.public_subnet_id }
-  vpc      = true
+  for_each = {
+    for obj in var.vpc_az_maps
+    : obj.az => obj.public_subnet_id
+    if var.create_nat_gateways
+  }
+  vpc = true
   tags = merge(var.tags, {
     "Name" = "alternat-gateway-eip"
   })
 }
 
 resource "aws_nat_gateway" "main" {
-  for_each      = { for obj in var.vpc_az_maps : obj.az => obj.public_subnet_id }
+  for_each = {
+    for obj in var.vpc_az_maps
+    : obj.az => obj.public_subnet_id
+    if var.create_nat_gateways
+  }
   allocation_id = aws_eip.nat_gateway_eips[each.key].id
   subnet_id     = each.value
   tags = merge(var.tags, {
