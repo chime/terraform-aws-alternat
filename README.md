@@ -164,7 +164,7 @@ Yes, but with caveats. You can set `create_nat_gateway=false` and alterNAT will 
 
 If you are using the open source terraform-aws-vpc module, you can set `nat_gateway_destination_cidr_block` to a value that is unlikely to affect your network. For instance, you could set `nat_gateway_destination_cidr_block=192.0.2.0/24`, an example CIDR range as discussed in [RFC5735](https://www.rfc-editor.org/rfc/rfc5735). This way the terraform-aws-vpc module will create and manage the NAT Gateways and their EIPs, but will not set the route to the Internet.
 
-Alternatively, you can remove the NAT Gateways and their EIPs from your existing configuration and then `terraform import` them to allow alterNAT to manage them.
+AlterNATively, you can remove the NAT Gateways and their EIPs from your existing configuration and then `terraform import` them to allow alterNAT to manage them.
 
 #### Why isn't this module published on the Terraform registry?
 
