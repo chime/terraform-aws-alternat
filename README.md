@@ -158,6 +158,14 @@ module "alternat_instances" {
 
 Feel free to submit a pull request or create an issue if you need an input or output that isn't available.
 
+#### Can I use my own NAT Gateways?
+
+Yes, but with caveats. You can set `create_nat_gateway=false` and alterNAT will not create NAT Gateways or EIPs for the NAT Gateways. However, alterNAT needs to manage the route to the Internet (`0.0.0.0/0`) for the private route tables. You have to ensure that you do not have an `aws_route` resource that points to the NAT Gateway from the route tables that you want to route through the alterNAT instances.
+
+If you are using the open source terraform-aws-vpc module, you can set `nat_gateway_destination_cidr_block` to a value that is unlikely to affect your network. For instance, you could set `nat_gateway_destination_cidr_block=192.0.2.0/24`, an example CIDR range as discussed in [RFC5735](https://www.rfc-editor.org/rfc/rfc5735). This way the terraform-aws-vpc module will create and manage the NAT Gateways and their EIPs, but will not set the route to the Internet.
+
+Alternatively, you can remove the NAT Gateways and their EIPs from your existing configuration and then `terraform import` them to allow alterNAT to manage them.
+
 #### Why isn't this module published on the Terraform registry?
 
 While we'd like for this to be available on the Terraform Registry, it requires a specific repo naming convention and folder structure that we do not want to adopt.
