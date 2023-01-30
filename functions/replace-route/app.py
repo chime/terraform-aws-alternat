@@ -115,7 +115,7 @@ def check_connection(check_urls):
     for url in check_urls:
         try:
             requests.get(url, timeout=REQUEST_TIMEOUT)
-            logger.info("Successfully connected to %s", url)
+            logger.debug("Successfully connected to %s", url)
             return True
         except (ReadTimeout, ConnectTimeout, HTTPError, Timeout,
                 ConnectionError, RequestException) as error:
@@ -149,7 +149,7 @@ def connectivity_test_handler(event, context):
         logger.error(f"Unable to handle unknown event type: {json.dumps(event)}")
         raise UnknownEventTypeError
 
-    logger.info("Starting NAT instance connectivity test")
+    logger.debug("Starting NAT instance connectivity test")
 
     check_interval = int(os.getenv("CONNECTIVITY_CHECK_INTERVAL", DEFAULT_CONNECTIVITY_CHECK_INTERVAL))
     check_urls = "CHECK_URLS" in os.environ and os.getenv("CHECK_URLS").split(",") or DEFAULT_CHECK_URLS
@@ -178,7 +178,6 @@ def handler(event, _):
         logger.error("Error: %s", error)
         raise error
 
-    logger.warning("Failed connectivity tests! Replacing route")
     availability_zone, vpc_zone_identifier = get_az_and_vpc_zone_identifier(asg)
     public_subnet_id = vpc_zone_identifier.split(",")[0]
     az = availability_zone.upper().replace("-", "_")
