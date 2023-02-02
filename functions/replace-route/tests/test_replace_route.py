@@ -8,11 +8,11 @@ import sys
 import zipfile
 import io
 import logging
+import mock
+import socket
 
 import boto3
 import sure
-import responses
-from requests import ConnectTimeout
 from moto import mock_autoscaling, mock_ec2, mock_iam, mock_lambda
 
 sys.path.append('..')
@@ -179,8 +179,8 @@ def _process_lambda(func_str):
 
 @mock_lambda
 @mock_ec2
-@responses.activate
-def test_connectivity_test_handler():
+@mock.patch('urllib.request.urlopen')
+def test_connectivity_test_handler(mock_urlopen):
     from app import connectivity_test_handler
     mocked_networking = setup_networking()
 
@@ -199,8 +199,7 @@ def test_connectivity_test_handler():
     class Context:
         function_name = lambda_function_name
 
-    responses.add(responses.GET, 'https://www.example.com', body=ConnectTimeout())
-    responses.add(responses.GET, 'https://www.google.com', body=ConnectTimeout())
+    mock_urlopen.side_effect = socket.timeout()
     os.environ["ROUTE_TABLE_IDS_CSV"] = ",".join([mocked_networking["route_table"], mocked_networking["route_table_two"]])
     os.environ["PUBLIC_SUBNET_ID"] = mocked_networking["public_subnet"]
 
