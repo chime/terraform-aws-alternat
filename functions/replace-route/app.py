@@ -2,11 +2,11 @@ import os
 import json
 import logging
 import time
+import urllib
+import socket
 
 import botocore
 import boto3
-import requests
-from requests import ReadTimeout, ConnectTimeout, HTTPError, Timeout, ConnectionError, RequestException
 
 
 logger = logging.getLogger()
@@ -26,6 +26,7 @@ DEFAULT_CONNECTIVITY_CHECK_INTERVAL = "5"
 
 # Which URLs to check for connectivity
 DEFAULT_CHECK_URLS = ["https://www.example.com", "https://www.google.com"]
+
 
 REQUEST_TIMEOUT = 5
 
@@ -114,12 +115,13 @@ def check_connection(check_urls):
     """
     for url in check_urls:
         try:
-            requests.get(url, timeout=REQUEST_TIMEOUT)
+            urllib.request.urlopen(url, timeout=REQUEST_TIMEOUT)
             logger.debug("Successfully connected to %s", url)
             return True
-        except (ReadTimeout, ConnectTimeout, HTTPError, Timeout,
-                ConnectionError, RequestException) as error:
+        except (urllib.error.URLError, urllib.error.HTTPError) as error:
             logger.error("error connecting to %s: %s", url, error)
+        except socket.timeout as error:
+            logger.error("timeout error connecting to %s: %s", url, error)
 
     logger.warning("Failed connectivity tests! Replacing route")
 

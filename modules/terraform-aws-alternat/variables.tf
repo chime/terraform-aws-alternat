@@ -16,6 +16,7 @@ variable "alternat_image_tag" {
 variable "alternat_image_uri" {
   description = "The URI of the container image for the HA NAT Lambda functions."
   type        = string
+  default     = ""
 }
 
 variable "architecture" {

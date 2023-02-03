@@ -1,22 +1,9 @@
-resource "null_resource" "prepare_artifact" {
-  count = var.lambda_package_type == "Zip" ? 1 : 0
-
-  triggers = {
-    dependencies_versions = filemd5("${path.module}/../../functions/replace-route/requirements.txt")
-  }
-
-  provisioner "local-exec" {
-    command = "pip install -r ${path.module}/../../functions/replace-route/requirements.txt -t ${path.module}/../../functions/replace-route"
-  }
-}
-
 data "archive_file" "lambda" {
   count       = var.lambda_package_type == "Zip" ? 1 : 0
   type        = "zip"
   source_dir  = "${path.module}/../../functions/replace-route"
   excludes    = ["__pycache__"]
   output_path = var.lambda_zip_path
-  depends_on  = [null_resource.prepare_artifact]
 }
 
 # Lambda function for Auto Scaling Group Lifecycle Hook
