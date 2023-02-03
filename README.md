@@ -102,7 +102,7 @@ As described above, alterNAT uses the [`ReplaceRoute` API](https://docs.aws.amaz
 
 ## Usage and Considerations
 
-There are two ways how you can deploy alterNAT with Terraform module from this repository:
+There are two ways to deploy alterNAT:
 
 - By building a Docker image and using AWS Lambda support for containers
 - By using AWS Lambda runtime for Python directly
