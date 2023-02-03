@@ -27,6 +27,7 @@ DEFAULT_CONNECTIVITY_CHECK_INTERVAL = "5"
 # Which URLs to check for connectivity
 DEFAULT_CHECK_URLS = ["https://www.example.com", "https://www.google.com"]
 
+
 REQUEST_TIMEOUT = 5
 
 def get_az_and_vpc_zone_identifier(auto_scaling_group):
