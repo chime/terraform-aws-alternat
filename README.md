@@ -102,14 +102,16 @@ As described above, alterNAT uses the [`ReplaceRoute` API](https://docs.aws.amaz
 
 ## Usage and Considerations
 
-There are two high level steps to using alterNAT:
+There are two ways how you can deploy alterNAT with Terraform module from this repository:
 
-1. Build and push the container image using the [`Dockerfile`](Dockerfile).
-1. Use the Terraform module to deploy all the things.
+- By building a Docker image and using AWS Lambda support for containers
+- By using AWS Lambda runtime for Python directly
 
 Use this project directly, as provided, or draw inspiration from it and use only the parts you need. We cut [releases](https://github.com/1debit/alternat/releases) following the [Semantic Versioning](https://semver.org/) method. We recommend pinning to our tagged releases or using the short commit SHA if you decide to use this repo directly.
 
 ### Building and pushing the container image
+
+Build and push the container image using the [`Dockerfile`](Dockerfile).
 
 We do not provide a public image, so you'll need to build an image and push it to the registry and repo of your choice. [Amazon ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html) is the obvious choice.
 
@@ -122,7 +124,7 @@ docker push <your_registry_url>/<your_repo:<release tag or short git commit sha>
 
 Start by reviewing the available [input variables](modules/terraform-aws-alternat/variables.tf). Example usage:
 
-```
+```hcl
 locals {
   vpc_az_maps = [
     for index, rt in module.vpc.private_route_table_ids
@@ -141,19 +143,30 @@ data "aws_subnet" "subnet" {
 }
 
 module "alternat_instances" {
-  source = "git::https://github.com/1debit/alternat.git//modules/terraform-aws-alternat?ref=v0.2.0"
+  source = "git::https://github.com/1debit/alternat.git//modules/terraform-aws-alternat?ref=v0.3.3"
 
   alternat_image_uri = "0123456789012.dkr.ecr.us-east-1.amazonaws.com/alternat-functions-lambda"
-  alternat_image_tag = "v0.2.0"
+  alternat_image_tag = "v0.3.3"
 
   ingress_security_group_ids = var.ingress_security_group_ids
+
+  lambda_package_type = "Image"
 
   tags = var.tags
 
   vpc_id      = module.vpc.vpc_id
   vpc_az_maps = local.vpc_az_maps
 }
+```
 
+To use AWS Lambda runtime for Python, remove `alternat_image_*` inputs and set `lambda_package_type` to `Zip`, e.g.:
+
+```hcl
+module "alternat_instances" {
+  ...
+  lambda_package_type = "Zip"
+  ...
+}
 ```
 
 Feel free to submit a pull request or create an issue if you need an input or output that isn't available.
@@ -189,7 +202,6 @@ While we'd like for this to be available on the Terraform Registry, it requires 
 - Most of the time, except when the instance is actively being replaces, NAT traffic should be routed through the NAT instance and NOT through the NAT Gateway. You should monitor your logs for the text "Failed connectivity tests! Replacing route" and alert when this occurs as you may need to manually intervene to resolve a problem with the NAT instances.
 
 - There are four Elastic IP addresses for the NAT instances and four for the NAT Gateways. Be sure to add all eight addresses to any external allow lists if necessary.
-
 
 ## Future work
 
