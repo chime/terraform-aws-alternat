@@ -174,7 +174,7 @@ def handler(event, _):
             if LIFECYCLE_KEY in message and ASG_KEY in message:
                 asg = message[ASG_KEY]
             else:
-                logger.error("Failed to find lifecyle message to parse")
+                logger.error("Failed to find lifecycle message to parse")
                 raise LifecycleMessageError
     except Exception as error:
         logger.error("Error: %s", error)
