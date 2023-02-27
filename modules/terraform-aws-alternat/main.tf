@@ -191,7 +191,7 @@ resource "aws_launch_template" "nat_instance_template" {
   for_each = { for obj in var.vpc_az_maps : obj.az => obj.route_table_ids }
 
   block_device_mappings {
-    device_name = "/dev/sda1"
+    device_name = "/dev/xvda"
 
     ebs {
       volume_size = 80
