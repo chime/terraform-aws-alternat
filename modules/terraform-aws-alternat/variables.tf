@@ -217,3 +217,9 @@ variable "lambda_zip_path" {
   type        = string
   default     = "/tmp/alternat-lambda.zip"
 }
+
+variable "nat_instance_user_data_post_install" {
+  type        = string
+  description = "Additional nat instance user data scripts"
+  default     = ""
+}

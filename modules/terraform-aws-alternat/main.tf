@@ -185,6 +185,10 @@ data "cloudinit_config" "config" {
     content_type = "text/x-shellscript"
     content      = file("${path.module}/../../scripts/alternat.sh")
   }
+  part {
+    content_type = "text/x-shellscript"
+    content = var.nat_instance_user_data_post_install
+  }
 }
 
 resource "aws_launch_template" "nat_instance_template" {
