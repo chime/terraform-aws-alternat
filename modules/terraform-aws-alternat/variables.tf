@@ -97,6 +97,12 @@ variable "nat_ami" {
   default     = ""
 }
 
+variable "nat_instance_block_devices" {
+  description = "Optional custom EBS volume settings for the NAT instance."
+  type        = any
+  default     = {}
+}
+
 variable "nat_instance_iam_profile_name" {
   description = "Name to use for the IAM profile used by the NAT instance. Must be globally unique in this AWS account. Defaults to alternat-instance- as a prefix."
   type        = string
