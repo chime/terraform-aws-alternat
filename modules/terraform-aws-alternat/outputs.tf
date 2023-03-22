@@ -11,3 +11,8 @@ output "nat_gateway_eips" {
     if var.create_nat_gateways
   ]
 }
+
+output "nat_instance_security_group_id" {
+  description = "NAT Instance Security Group ID."
+  value = aws_security_group.nat_instance.id
+}
