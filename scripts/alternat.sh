@@ -61,13 +61,13 @@ configure_nat() {
 
    for cidr in "${vpc_cidrs[@]}";
    do
-      (iptables -t nat -C POSTROUTING -o eth0 -s "$cidr" -j MASQUERADE 2> /dev/null ||
-      iptables -t nat -A POSTROUTING -o eth0 -s "$cidr" -j MASQUERADE) ||
+      (iptables -t nat -C POSTROUTING -o eth0 -s "$cidr" -j MASQUERADE --random-fully 2> /dev/null ||
+      iptables -t nat -A POSTROUTING -o eth0 -s "$cidr" -j MASQUERADE --random-fully) ||
       panic
    done
 
    sysctl net.ipv4.ip_forward net.ipv4.conf.eth0.send_redirects net.ipv4.ip_local_port_range
-   iptables -n -t nat -L POSTROUTING
+   iptables -n -t nat -L POSTROUTING --random-fully
 
    echo "NAT configuration complete"
 }
