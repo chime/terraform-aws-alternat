@@ -149,6 +149,12 @@ variable "nat_instance_eip_ids" {
   default     = []
 }
 
+variable "nat_instance_user_data_post_install" {
+  description = "Instance EC2 user data post-install shell script (optional install of third-party software)."
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "A map of tags to add to all supported resources managed by the module."
   type        = map(string)
