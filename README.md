@@ -152,6 +152,18 @@ module "alternat_instances" {
 
   lambda_package_type = "Image"
 
+  # Optional EBS volume settings. If omitted, the AMI defaults will be used.
+  nat_instance_block_devices = {
+    xvda = {
+      device_name = "/dev/xvda"
+      ebs = {
+        encrypted   = true
+        volume_type = "gp3"
+        volume_size = 20
+      }
+    }
+  }
+
   tags = var.tags
 
   vpc_id      = module.vpc.vpc_id

@@ -190,12 +190,21 @@ data "cloudinit_config" "config" {
 resource "aws_launch_template" "nat_instance_template" {
   for_each = { for obj in var.vpc_az_maps : obj.az => obj.route_table_ids }
 
-  block_device_mappings {
-    device_name = "/dev/sda1"
+  dynamic "block_device_mappings" {
+    for_each = try(var.nat_instance_block_devices, {})
 
-    ebs {
-      volume_size = 80
-      encrypted   = true
+    content {
+      device_name = try(block_device_mappings.value.device_name, null)
+
+      dynamic "ebs" {
+        for_each = try([block_device_mappings.value.ebs], [])
+
+        content {
+          encrypted   = try(ebs.value.encrypted, null)
+          volume_size = try(ebs.value.volume_size, null)
+          volume_type = try(ebs.value.volume_type, null)
+        }
+      }
     }
   }
 
