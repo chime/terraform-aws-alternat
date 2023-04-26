@@ -150,7 +150,7 @@ variable "nat_instance_eip_ids" {
 }
 
 variable "nat_instance_user_data_post_install" {
-  description = "Instance EC2 user data post-install shell script (optional install of third-party software)."
+  description = "Post-install shell script to run at boot after configuring alternat."
   type        = string
   default     = ""
 }
