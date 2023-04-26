@@ -169,7 +169,7 @@ module "alternat_instances" {
 }
 ```
 
-The `nat_instance_user_data_post_install` variable in allows for the optional installation of third-party software on the NAT EC2 instance, by defining a shell script that is executed after the main configuration has been installed.
+The `nat_instance_user_data_post_install` variable allows you to run an additional script to be executed after the main configuration has been installed.
 
 ```hcl
 module "alternat_instances" {
