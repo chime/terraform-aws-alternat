@@ -155,6 +155,12 @@ variable "nat_instance_eip_ids" {
   default     = []
 }
 
+variable "nat_instance_user_data_post_install" {
+  description = "Post-install shell script to run at boot after configuring alternat."
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "A map of tags to add to all supported resources managed by the module."
   type        = map(string)

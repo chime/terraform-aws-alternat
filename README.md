@@ -181,6 +181,18 @@ module "alternat_instances" {
 }
 ```
 
+The `nat_instance_user_data_post_install` variable allows you to run an additional script to be executed after the main configuration has been installed.
+
+```hcl
+module "alternat_instances" {
+  ...
+    nat_instance_user_data_post_install = templatefile("${path.root}/post_install.tpl", {
+      VERSION_ENV = var.third_party_version
+    })
+  ...
+}
+```
+
 Feel free to submit a pull request or create an issue if you need an input or output that isn't available.
 
 #### Can I use my own NAT Gateways?
