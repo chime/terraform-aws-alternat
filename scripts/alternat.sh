@@ -21,6 +21,9 @@ load_config() {
    fi
    validate_var "eip_allocation_ids_csv" "$eip_allocation_ids_csv"
    validate_var "route_table_ids_csv" "$route_table_ids_csv"
+   validate_var "tcp_keepalive_time" "$tcp_keepalive_time"
+   validate_var "tcp_keepalive_probes" "$tcp_keepalive_probes"
+   validate_var "tcp_keepalive_intvl" "$tcp_keepalive_intvl"
 }
 
 validate_var() {
@@ -56,7 +59,13 @@ configure_nat() {
    echo "Enabling NAT..."
    # Read more about these settings here: https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt
 
-   sysctl -q -w net.ipv4.ip_forward=1 net.ipv4.conf.eth0.send_redirects=0 net.ipv4.ip_local_port_range="1024 65535" ||
+   sysctl -q -w \
+      net.ipv4.ip_forward=1 \
+      net.ipv4.conf.eth0.send_redirects=0 \
+      net.ipv4.ip_local_port_range="1024 65535" \
+      net.ipv4.tcp_keepalive_time="$tcp_keepalive_time" \
+      net.ipv4.tcp_keepalive_probes="$tcp_keepalive_probes" \
+      net.ipv4.tcp_keepalive_intvl="$tcp_keepalive_intvl" ||
       panic
 
    for cidr in "${vpc_cidrs[@]}";
@@ -66,7 +75,13 @@ configure_nat() {
       panic
    done
 
-   sysctl net.ipv4.ip_forward net.ipv4.conf.eth0.send_redirects net.ipv4.ip_local_port_range
+   # Print the settings to the console
+   sysctl net.ipv4.ip_forward \
+      net.ipv4.conf.eth0.send_redirects \
+      net.ipv4.ip_local_port_range \
+      net.ipv4.tcp_keepalive_time \
+      net.ipv4.tcp_keepalive_probes \
+      net.ipv4.tcp_keepalive_intvl
    iptables -n -t nat -L POSTROUTING
 
    echo "NAT configuration complete"

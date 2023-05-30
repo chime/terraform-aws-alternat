@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
 USERDATA_CONFIG_FILE="/etc/alternat.conf"
-echo eip_allocation_ids_csv=${eip_allocation_ids_csv} >> "$USERDATA_CONFIG_FILE"
-echo route_table_ids_csv=${route_table_ids_csv} >> "$USERDATA_CONFIG_FILE"
+write_config() {
+    echo $1=$2 >> "$USERDATA_CONFIG_FILE"
+}
+write_config eip_allocation_ids_csv "${eip_allocation_ids_csv}"
+write_config route_table_ids_csv "${route_table_ids_csv}"
+write_config tcp_keepalive_time "${tcp_keepalive_time}"
+write_config tcp_keepalive_probes "${tcp_keepalive_probes}"
+write_config tcp_keepalive_intvl "${tcp_keepalive_intvl}"

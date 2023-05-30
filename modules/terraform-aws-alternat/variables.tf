@@ -229,3 +229,21 @@ variable "lambda_zip_path" {
   type        = string
   default     = "/tmp/alternat-lambda.zip"
 }
+
+variable "tcp_keepalive_time" {
+  description = "How often TCP sends out keepalive messages when keepalive is enabled, in seconds."
+  type        = number
+  default     = 7200
+}
+
+variable "tcp_keepalive_probes" {
+  description = "How many keepalive probes TCP sends out, until it decides that the connection is broken."
+  type        = number
+  default     = 9
+}
+
+variable "tcp_keepalive_intvl" {
+  description = "How frequently the probes are send out, in seconds."
+  type        = number
+  default     = 75
+}
