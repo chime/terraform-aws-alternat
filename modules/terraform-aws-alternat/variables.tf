@@ -229,3 +229,9 @@ variable "lambda_zip_path" {
   type        = string
   default     = "/tmp/alternat-lambda.zip"
 }
+
+variable "lambda_function_architectures" {
+  description = "CPU architecture(s) to use for the lambda functions."
+  type        = list(string)
+  default     = ["x86_64"]
+}
