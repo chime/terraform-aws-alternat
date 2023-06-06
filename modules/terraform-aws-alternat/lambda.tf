@@ -9,6 +9,7 @@ data "archive_file" "lambda" {
 # Lambda function for Auto Scaling Group Lifecycle Hook
 resource "aws_lambda_function" "alternat_autoscaling_hook" {
   function_name = var.autoscaling_hook_function_name
+  architectures = var.lambda_function_architectures
   package_type  = var.lambda_package_type
   memory_size   = var.lambda_memory_size
   timeout       = var.lambda_timeout
@@ -120,6 +121,7 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
   for_each = { for obj in var.vpc_az_maps : obj.az => obj }
 
   function_name = "${var.connectivity_tester_function_name}-${each.key}"
+  architectures = var.lambda_function_architectures
   package_type  = var.lambda_package_type
   memory_size   = var.lambda_memory_size
   timeout       = var.lambda_timeout
