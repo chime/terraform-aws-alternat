@@ -277,8 +277,9 @@ resource "aws_security_group_rule" "nat_instance_ingress" {
   protocol                 = "-1"
   from_port                = 0
   to_port                  = 0
+  cidr_blocks              = var.nat_allowed_cidrs
   security_group_id        = aws_security_group.nat_instance.id
-  source_security_group_id = local.nat_instance_ingress_sgs[count.index]
+  #source_security_group_id = local.nat_instance_ingress_sgs[count.index]
 }
 
 
