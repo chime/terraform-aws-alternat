@@ -229,3 +229,5 @@ variable "lambda_zip_path" {
   type        = string
   default     = "/tmp/alternat-lambda.zip"
 }
+variable "nat_allowed_cidrs" {
+}
