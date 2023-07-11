@@ -191,3 +191,6 @@ disable_source_dest_check
 associate_eip
 configure_route_table
 echo "Configuration completed successfully!"
+echo " Installing node exporter"
+curl -LO https://github.com/prometheus/node_exporter/releases/download/v1.6.0/node_exporter-1.6.0.darwin-arm64.tar.gz
+tar -xvf node_exporter-1.6.0.darwin-arm64.tar.gz
