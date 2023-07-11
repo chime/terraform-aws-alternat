@@ -192,8 +192,8 @@ associate_eip
 configure_route_table
 echo "Configuration completed successfully!"
 echo "Installing node exporter"
-curl -LO https://github.com/prometheus/node_exporter/releases/download/v1.6.0/node_exporter-1.6.0.darwin-arm64.tar.gz
-tar -xvfz node_exporter-1.6.0.darwin-arm64.tar.gz
-cd node_exporter-1.6.0.darwin-arm64
+curl -LO https://github.com/prometheus/node_exporter/releases/download/v1.6.0/node_exporter-1.6.0.linux-arm64.tar.gz
+tar -xvzf node_exporter-*.*-arm64.tar.gz
+cd node_exporter-*.*-arm64
 ./node_exporter
 echo "Done installing node exporter"
