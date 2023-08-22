@@ -15,6 +15,8 @@ resource "aws_lambda_function" "alternat_autoscaling_hook" {
   timeout       = var.lambda_timeout
   role          = aws_iam_role.nat_lambda_role.arn
 
+  layers        = var.lambda_layer_arns
+
   image_uri = var.lambda_package_type == "Image" ? "${var.alternat_image_uri}:${var.alternat_image_tag}" : null
 
   runtime          = var.lambda_package_type == "Zip" ? "python3.8" : null
@@ -126,6 +128,8 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
   memory_size   = var.lambda_memory_size
   timeout       = var.lambda_timeout
   role          = aws_iam_role.nat_lambda_role.arn
+
+  layers        = var.lambda_layer_arns
 
   image_uri = var.lambda_package_type == "Image" ? "${var.alternat_image_uri}:${var.alternat_image_tag}" : null
 
