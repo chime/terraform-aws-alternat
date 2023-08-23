@@ -204,4 +204,4 @@ let CON=$CON*2
 echo "Setting conntrack max to:"
 echo $CON
 echo $CON > /proc/sys/net/netfilter/nf_conntrack_max
-
+echo "Done!"
