@@ -197,5 +197,11 @@ tar -xvzf node_exporter-*.*-arm64.tar.gz
 cd node_exporter-*.*-arm64
 ./node_exporter
 echo "Done installing node exporter"
-echo "Conntrack max is:"
+echo "Current conntrack max is:"
 cat /proc/sys/net/netfilter/nf_conntrack_max
+CON=$(cat /proc/sys/net/netfilter/nf_conntrack_max)
+let CON=$CON*2
+echo "Setting conntrack max to:"
+echo $CON
+echo $CON > /proc/sys/net/netfilter/nf_conntrack_max
+
