@@ -97,6 +97,11 @@ variable "nat_ami" {
   default     = ""
 }
 
+variable "key_name" {
+  description = "The SSH KEY to use for the NAT instance."
+  type        = string
+  default     = ""
+
 variable "nat_instance_block_devices" {
   description = "Optional custom EBS volume settings for the NAT instance."
   type        = any
