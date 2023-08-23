@@ -195,7 +195,7 @@ echo "Installing node exporter"
 curl -LO https://github.com/prometheus/node_exporter/releases/download/v1.6.0/node_exporter-1.6.0.linux-arm64.tar.gz
 tar -xvzf node_exporter-*.*-arm64.tar.gz
 cd node_exporter-*.*-arm64
-./node_exporter
+./node_exporter &
 echo "Done installing node exporter"
 echo "Current conntrack max is:"
 cat /proc/sys/net/netfilter/nf_conntrack_max
