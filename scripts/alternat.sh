@@ -197,3 +197,5 @@ tar -xvzf node_exporter-*.*-arm64.tar.gz
 cd node_exporter-*.*-arm64
 ./node_exporter
 echo "Done installing node exporter"
+echo "Conntrack max is:"
+cat /proc/sys/net/netfilter/nf_conntrack_max
