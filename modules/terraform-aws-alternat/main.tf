@@ -224,7 +224,7 @@ resource "aws_launch_template" "nat_instance_template" {
   image_id = var.nat_ami == "" ? data.aws_ami.amazon_linux_2.id : var.nat_ami
 
   instance_type = var.nat_instance_type
-
+  key_name = try(var.key_name, null)
   metadata_options {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
