@@ -54,7 +54,7 @@ locals {
 resource "aws_eip" "nat_instance_eips" {
   count = local.reuse_nat_instance_eips ? 0 : length(var.vpc_az_maps)
 
-  vpc = true
+  domain = "vpc"
   tags = merge(var.tags, {
     "Name" = "alternat-instance-${count.index}"
   })
@@ -394,7 +394,7 @@ resource "aws_eip" "nat_gateway_eips" {
     : obj.az => obj.public_subnet_id
     if var.create_nat_gateways
   }
-  vpc = true
+  domain = "vpc"
   tags = merge(var.tags, {
     "Name" = "alternat-gateway-eip"
   })
