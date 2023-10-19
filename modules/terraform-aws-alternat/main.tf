@@ -280,6 +280,14 @@ resource "aws_security_group_rule" "nat_instance_ingress" {
   source_security_group_id = local.nat_instance_ingress_sgs[count.index]
 }
 
+resource "aws_security_group_rule" "nat_instance_ip_range_ingress" {
+  type                     = "ingress"
+  protocol                 = "-1"
+  from_port                = 0
+  to_port                  = 0
+  security_group_id        = aws_security_group.nat_instance.id
+  cidr_blocks = var.ingress_security_group_cidr_blocks
+}
 
 ### NAT instance IAM
 
