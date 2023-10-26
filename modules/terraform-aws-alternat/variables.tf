@@ -79,6 +79,12 @@ variable "ingress_security_group_ids" {
   default     = []
 }
 
+variable "ingress_security_group_cidr_blocks" {
+  description = "A list of CIDR blocks that are allowed by the NAT instance."
+  type        = list(string)
+  default     = []
+}
+
 variable "lifecycle_heartbeat_timeout" {
   description = "The length of time, in seconds, that autoscaled NAT instances should wait in the terminate state before being fully terminated."
   type        = number
