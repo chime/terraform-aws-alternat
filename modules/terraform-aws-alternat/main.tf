@@ -281,6 +281,8 @@ resource "aws_security_group_rule" "nat_instance_ingress" {
 }
 
 resource "aws_security_group_rule" "nat_instance_ip_range_ingress" {
+  count = length(var.ingress_security_group_cidr_blocks) > 0 ? 1 : 0
+  
   type                     = "ingress"
   protocol                 = "-1"
   from_port                = 0
