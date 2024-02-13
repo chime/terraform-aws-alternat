@@ -14,5 +14,13 @@ output "nat_gateway_eips" {
 
 output "nat_instance_security_group_id" {
   description = "NAT Instance Security Group ID."
-  value = aws_security_group.nat_instance.id
+  value       = aws_security_group.nat_instance.id
+}
+
+output "autoscaling_group_names" {
+  description = "Name of autoscaling groups for NAT instances."
+  value = [
+    for asg in aws_autoscaling_group.nat_instance
+    : asg.name
+  ]
 }
