@@ -161,6 +161,12 @@ variable "nat_instance_eip_ids" {
   default     = []
 }
 
+variable "nat_instance_user_data_pre_install" {
+  description = "Pre-install shell script to run at boot before configuring alternat."
+  type        = string
+  default     = ""
+}
+
 variable "nat_instance_user_data_post_install" {
   description = "Post-install shell script to run at boot after configuring alternat."
   type        = string
@@ -247,4 +253,3 @@ variable "lambda_layer_arns" {
   description = "List of Lambda layers ARN that will be added to functions"
   default     = null
 }
-
