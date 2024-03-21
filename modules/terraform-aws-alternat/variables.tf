@@ -1,6 +1,6 @@
 variable "additional_instance_policies" {
   description = "Additional policies for the HA NAT instance IAM role."
-  type        = list(object({
+  type = list(object({
     policy_name = string
     policy_json = string
   }))
@@ -81,6 +81,12 @@ variable "ingress_security_group_ids" {
 
 variable "ingress_security_group_cidr_blocks" {
   description = "A list of CIDR blocks that are allowed by the NAT instance."
+  type        = list(string)
+  default     = []
+}
+
+variable "ingress_security_group_ipv6_cidr_blocks" {
+  description = "A list of IPv6 CIDR blocks that are allowed by the NAT instance."
   type        = list(string)
   default     = []
 }
@@ -181,7 +187,7 @@ variable "tags" {
 
 variable "vpc_az_maps" {
   description = "A map of az to private route tables that the NAT instances will manage."
-  type        = list(object({
+  type = list(object({
     az                 = string
     private_subnet_ids = list(string)
     public_subnet_id   = string
@@ -220,7 +226,7 @@ variable "lambda_timeout" {
 
 variable "lambda_handlers" {
   description = "Lambda handlers."
-  type        = object({
+  type = object({
     connectivity_tester       = string,
     alternat_autoscaling_hook = string,
   })
