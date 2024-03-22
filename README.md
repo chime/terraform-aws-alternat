@@ -227,6 +227,15 @@ While we'd like for this to be available on the Terraform Registry, it requires 
 
 - There are four Elastic IP addresses for the NAT instances and four for the NAT Gateways. Be sure to add all eight addresses to any external allow lists if necessary.
 
+- If you plan on running this in a dual stack network (IPv4 and IPv6), you may notice that it takes ~10 minutes for an alternat node to start. In that case, you can use the `nat_instance_user_data_pre_install` variable to prefer IPv4 over IPv6 before running any user data.
+
+  ```tf
+    nat_instance_user_data_pre_install = <<-EOF
+      # Prefer IPv4 over IPv6
+      echo 'precedence ::ffff:0:0/96 100' >> /etc/gai.conf
+    EOF
+  ```
+
 ## Future work
 
 We would like this benefit to benefit as many users as possible. Possible future enhancements include:

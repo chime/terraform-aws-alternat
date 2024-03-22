@@ -173,6 +173,16 @@ data "cloudinit_config" "config" {
 
   gzip          = true
   base64_encode = true
+
+  dynamic "part" {
+    for_each = var.nat_instance_user_data_pre_install != "" ? [1] : []
+
+    content {
+      content_type = "text/x-shellscript"
+      content      = var.nat_instance_user_data_pre_install
+    }
+  }
+
   part {
     content_type = "text/x-shellscript"
     content = templatefile("${path.module}/alternat.conf.tftpl", {
@@ -180,6 +190,7 @@ data "cloudinit_config" "config" {
       route_table_ids_csv    = join(",", each.value)
     })
   }
+
   part {
     content_type = "text/x-shellscript"
     content      = file("${path.module}/../../scripts/alternat.sh")
@@ -282,13 +293,24 @@ resource "aws_security_group_rule" "nat_instance_ingress" {
 
 resource "aws_security_group_rule" "nat_instance_ip_range_ingress" {
   count = length(var.ingress_security_group_cidr_blocks) > 0 ? 1 : 0
-  
-  type                     = "ingress"
-  protocol                 = "-1"
-  from_port                = 0
-  to_port                  = 0
-  security_group_id        = aws_security_group.nat_instance.id
-  cidr_blocks = var.ingress_security_group_cidr_blocks
+
+  type              = "ingress"
+  protocol          = "-1"
+  from_port         = 0
+  to_port           = 0
+  security_group_id = aws_security_group.nat_instance.id
+  cidr_blocks       = var.ingress_security_group_cidr_blocks
+}
+
+resource "aws_security_group_rule" "nat_instance_ipv6_range_ingress" {
+  count = length(var.ingress_security_group_ipv6_cidr_blocks) > 0 ? 1 : 0
+
+  type              = "ingress"
+  protocol          = "-1"
+  from_port         = 0
+  to_port           = 0
+  security_group_id = aws_security_group.nat_instance.id
+  ipv6_cidr_blocks  = var.ingress_security_group_ipv6_cidr_blocks
 }
 
 ### NAT instance IAM
