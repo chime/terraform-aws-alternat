@@ -242,6 +242,12 @@ variable "lambda_environment_variables" {
   default     = null
 }
 
+variable "lambda_has_ipv6" {
+  description = "Controls whether or not the lambda function can use IPv6."
+  type        = bool
+  default     = true
+}
+
 variable "lambda_zip_path" {
   description = "The location where the generated zip file should be stored. Required when `lambda_package_type` is \"Zip\"."
   type        = string

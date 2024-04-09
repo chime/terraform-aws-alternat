@@ -206,3 +206,16 @@ def test_connectivity_test_handler(mock_urlopen):
     connectivity_test_handler(event=json.loads(cloudwatch_event), context=Context())
 
     verify_nat_gateway_route(mocked_networking)
+
+
+def test_disable_ipv6():
+    results = socket.getaddrinfo("google.com", 80)
+    families = [family for family, _, _, _, _ in results]
+    assert socket.AF_INET6 in families, "Unable to find a non-IPv4 address family in getaddrinfo results before patching getaddrinfo"
+
+    from app import disable_ipv6
+    disable_ipv6()
+    results = socket.getaddrinfo("google.com", 80)
+    for family, _, _, _, _ in results:
+        assert family == socket.AF_INET, "Found a non-IPv4 address family in getaddrinfo results"
+
