@@ -27,7 +27,6 @@ resource "aws_lambda_function" "alternat_autoscaling_hook" {
   environment {
     variables = merge(
       local.autoscaling_func_env_vars,
-      local.has_ipv6_env_var,
       var.lambda_environment_variables,
     )
   }
@@ -152,11 +151,15 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
   }
 
   environment {
-    variables = merge({
-      ROUTE_TABLE_IDS_CSV = join(",", each.value.route_table_ids),
-      PUBLIC_SUBNET_ID    = each.value.public_subnet_id
-      CHECK_URLS          = join(",", var.connectivity_test_check_urls)
-    }, var.lambda_environment_variables)
+    variables = merge(
+      {
+        ROUTE_TABLE_IDS_CSV = join(",", each.value.route_table_ids),
+        PUBLIC_SUBNET_ID    = each.value.public_subnet_id
+        CHECK_URLS          = join(",", var.connectivity_test_check_urls)
+      },
+      local.has_ipv6_env_var,
+      var.lambda_environment_variables,
+    )
   }
 
   vpc_config {
