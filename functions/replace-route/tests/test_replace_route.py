@@ -206,3 +206,14 @@ def test_connectivity_test_handler(mock_urlopen):
     connectivity_test_handler(event=json.loads(cloudwatch_event), context=Context())
 
     verify_nat_gateway_route(mocked_networking)
+
+
+def test_disable_ipv6():
+    with mock.patch('socket.getaddrinfo') as mock_getaddrinfo:
+        from app import disable_ipv6
+        disable_ipv6()
+        socket.getaddrinfo('example.com', 80)
+        mock_getaddrinfo.assert_called()
+        call_args = mock_getaddrinfo.call_args.args
+        assert len(call_args) == 3, f"With IPv6 disabled, expected 3 arguments to getaddrinfo, found {len(call_args)}"
+        assert call_args[2] == socket.AF_INET, "Did not find AF_INET family in args to getaddrinfo"
