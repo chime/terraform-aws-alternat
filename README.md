@@ -235,7 +235,7 @@ While we'd like for this to be available on the Terraform Registry, it requires 
       echo 'precedence ::ffff:0:0/96 100' >> /etc/gai.conf
     EOF
   ```
-- If you see errors like: `error connecting to https://www.google.com/: <urlopen error [Errno 97] Address family not supported by protocol>` in the connectivity tester logs, you can set `lambda_has_ipv6 = false`. This will cause the lambda to request IPv4 addresses only in DNS looikups.
+- If you see errors like: `error connecting to https://www.google.com/: <urlopen error [Errno 97] Address family not supported by protocol>` in the connectivity tester logs, you can set `lambda_has_ipv6 = false`. This will cause the lambda to request IPv4 addresses only in DNS lookups.
 
 
 
