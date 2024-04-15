@@ -209,13 +209,11 @@ def test_connectivity_test_handler(mock_urlopen):
 
 
 def test_disable_ipv6():
-    results = socket.getaddrinfo("google.com", 80)
-    families = [family for family, _, _, _, _ in results]
-    assert socket.AF_INET6 in families, "Unable to find a non-IPv4 address family in getaddrinfo results before patching getaddrinfo"
-
-    from app import disable_ipv6
-    disable_ipv6()
-    results = socket.getaddrinfo("google.com", 80)
-    for family, _, _, _, _ in results:
-        assert family == socket.AF_INET, "Found a non-IPv4 address family in getaddrinfo results"
-
+    with mock.patch('socket.getaddrinfo') as mock_getaddrinfo:
+        from app import disable_ipv6
+        disable_ipv6()
+        socket.getaddrinfo('example.com', 80)
+        mock_getaddrinfo.assert_called()
+        call_args = mock_getaddrinfo.call_args.args
+        assert len(call_args) == 3, f"With IPv6 disabled, expected 3 arguments to getaddrinfo, found {len(call_args)}"
+        assert call_args[2] == socket.AF_INET, "Did not find AF_INET family in args to getaddrinfo"
