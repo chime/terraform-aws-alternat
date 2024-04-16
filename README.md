@@ -237,6 +237,13 @@ While we'd like for this to be available on the Terraform Registry, it requires 
   ```
 - If you see errors like: `error connecting to https://www.google.com/: <urlopen error [Errno 97] Address family not supported by protocol>` in the connectivity tester logs, you can set `lambda_has_ipv6 = false`. This will cause the lambda to request IPv4 addresses only in DNS lookups.
 
+- If you want to use just a single NAT Gateway for fallback, you can create it externally and provide its ID through the `nat_gateway_id` variable. Note that you will incur cross AZ traffic charges of $0.01/GB.
+
+  ```tf
+    create_nat_gateways = false
+    nat_gateway_id      = "nat-..."
+  ```
+
 
 
 ## Future work

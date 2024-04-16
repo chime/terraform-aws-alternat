@@ -195,6 +195,12 @@ variable "vpc_az_maps" {
   }))
 }
 
+variable "nat_gateway_id" {
+  description = "NAT Gateway ID to use for fallback. If not provided, the gateway in the same subnet as relevant NAT instance is selected."
+  type        = string
+  default     = ""
+}
+
 variable "vpc_id" {
   description = "The ID of the VPC."
   type        = string
