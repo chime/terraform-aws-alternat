@@ -8,6 +8,8 @@ import socket
 import botocore
 import boto3
 
+# This is a comment
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
