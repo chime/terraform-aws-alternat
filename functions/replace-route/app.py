@@ -125,15 +125,20 @@ def replace_route(route_table_id, nat_gateway_id):
 def check_connection(check_urls):
     """
     Checks connectivity to check_urls. If any of them succeed, return success.
-    If both fail, replaces the route table to point at a standby NAT Gateway and
+    If all fail, replaces the route table to point at a standby NAT Gateway and
     return failure.
     """
     for url in check_urls:
         try:
-            urllib.request.urlopen(url, timeout=REQUEST_TIMEOUT)
+            req = urllib.request.Request(url)
+            req.add_header('User-Agent', 'alternat/1.0')
+            urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT)
             logger.debug("Successfully connected to %s", url)
             return True
-        except (urllib.error.URLError, urllib.error.HTTPError) as error:
+        except urllib.error.HTTPError as error:
+            logger.warning("Response error from %s: %s, treating as success", url, error)
+            return True
+        except urllib.error.URLError as error:
             logger.error("error connecting to %s: %s", url, error)
         except socket.timeout as error:
             logger.error("timeout error connecting to %s: %s", url, error)
