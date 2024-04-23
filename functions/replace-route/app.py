@@ -82,6 +82,11 @@ def get_vpc_id(route_table):
 
 
 def get_nat_gateway_id(vpc_id, subnet_id):
+    nat_gateway_id = os.getenv("NAT_GATEWAY_ID")
+    if nat_gateway_id:
+        logger.info("Using NAT_GATEWAY_ID env. variable (%s)", nat_gateway_id)
+        return nat_gateway_id
+
     try:
         nat_gateways = ec2_client.describe_nat_gateways(
             Filters=[
