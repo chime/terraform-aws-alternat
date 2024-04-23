@@ -5,6 +5,7 @@ locals {
     : replace(upper(obj.az), "-", "_") => join(",", obj.route_table_ids)
   }
   has_ipv6_env_var = { "HAS_IPV6" = var.lambda_has_ipv6 }
+  lambda_runtime   = "python3.12"
 }
 
 data "archive_file" "lambda" {
@@ -28,7 +29,7 @@ resource "aws_lambda_function" "alternat_autoscaling_hook" {
 
   image_uri = var.lambda_package_type == "Image" ? "${var.alternat_image_uri}:${var.alternat_image_tag}" : null
 
-  runtime          = var.lambda_package_type == "Zip" ? "python3.8" : null
+  runtime          = var.lambda_package_type == "Zip" ? local.lambda_runtime : null
   handler          = var.lambda_package_type == "Zip" ? var.lambda_handlers.alternat_autoscaling_hook : null
   filename         = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_path : null
   source_code_hash = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_base64sha256 : null
@@ -138,7 +139,7 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
 
   image_uri = var.lambda_package_type == "Image" ? "${var.alternat_image_uri}:${var.alternat_image_tag}" : null
 
-  runtime          = var.lambda_package_type == "Zip" ? "python3.8" : null
+  runtime          = var.lambda_package_type == "Zip" ? local.lambda_runtime : null
   handler          = var.lambda_package_type == "Zip" ? var.lambda_handlers.connectivity_tester : null
   filename         = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_path : null
   source_code_hash = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_base64sha256 : null
