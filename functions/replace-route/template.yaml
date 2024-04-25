@@ -5,11 +5,11 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: app.handler
-      Runtime: python3.8
+      Runtime: python3.12
       Timeout: 30
   ConnectivityTestFunction:
     Type: AWS::Serverless::Function
     Properties:
       Handler: app.connectivity_test_handler
-      Runtime: python3.8
+      Runtime: python3.12
       Timeout: 30

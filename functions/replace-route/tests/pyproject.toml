@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+filterwarnings = [
+    'ignore:datetime.datetime.utcnow\(\) is deprecated:DeprecationWarning', # https://github.com/boto/botocore/pull/3145
+]

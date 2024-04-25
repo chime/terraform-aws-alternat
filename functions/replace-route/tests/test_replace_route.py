@@ -13,7 +13,7 @@ import socket
 
 import boto3
 import sure
-from moto import mock_autoscaling, mock_ec2, mock_iam, mock_lambda
+from moto import mock_aws
 
 sys.path.append('..')
 
@@ -25,7 +25,7 @@ logging.getLogger('botocore').setLevel(logging.CRITICAL)
 EXAMPLE_AMI_ID = "ami-12c6146b"
 
 
-@mock_ec2
+@mock_aws
 def setup_networking():
     az = f"{os.environ['AWS_DEFAULT_REGION']}a"
     ec2 = boto3.resource("ec2")
@@ -113,8 +113,7 @@ def verify_nat_gateway_route(mocked_networking):
         zero_route.should.have.key("NatGatewayId").equals(mocked_networking["nat_gw"])
 
 
-@mock_autoscaling
-@mock_ec2
+@mock_aws
 def test_handler():
     mocked_networking = setup_networking()
     ec2_client = boto3.client("ec2")
@@ -149,7 +148,7 @@ def test_handler():
     verify_nat_gateway_route(mocked_networking)
 
 
-@mock_iam
+@mock_aws
 def get_role():
     iam = boto3.client("iam")
     return iam.create_role(
@@ -177,8 +176,7 @@ def _process_lambda(func_str):
     return zip_output.read()
 
 
-@mock_lambda
-@mock_ec2
+@mock_aws
 @mock.patch('urllib.request.urlopen')
 def test_connectivity_test_handler(mock_urlopen):
     from app import connectivity_test_handler
