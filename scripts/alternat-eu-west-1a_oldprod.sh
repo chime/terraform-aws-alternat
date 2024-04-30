@@ -5,8 +5,8 @@
 # https://alestic.com/2010/12/ec2-user-data-output/
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
-echo eip_allocation_ids_csv=eipalloc-05bed52af1132c4e5,eipalloc-0f766b3862a50a161,eipalloc-0597cfcaeac4a5a8f >> "$USERDATA_CONFIG_FILE"
-echo route_table_ids_csv=	rtb-f1de2795 >> "$USERDATA_CONFIG_FILE"
+echo eip_allocation_ids_csv=eipalloc-05bed52af1132c4e5,eipalloc-0f766b3862a50a161,eipalloc-0597cfcaeac4a5a8f
+echo route_table_ids_csv=	rtb-f1de2795
 shopt -s expand_aliases
 
 panic() {
