@@ -20,7 +20,7 @@ jobs:
         run: echo "::set-output name=short_sha::$(git rev-parse --short HEAD)"
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
       - name: Build, tag, and push lambda image to Amazon ECR
         run: |
           docker build . -t "${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ steps.sha.outputs.short_sha }}"
