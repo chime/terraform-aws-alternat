@@ -11,6 +11,7 @@ jobs:
       AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Run tests
         run: |
           pip install pip --upgrade
@@ -18,6 +19,7 @@ jobs:
           pip install -r functions/replace-route/requirements.txt
           pip install -r functions/replace-route/tests/test_requirements.txt
           python -m pytest
+
   terraform_tests:
     permissions:
       id-token: write 
@@ -25,18 +27,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+
+      - name: Install Go
+        uses: actions/setup-go@v5
         with:
           go-version: 1.22.3
+          go-version-file: test/go.mod
           cache-dependency-path: test/go.sum
-      - name: Install dependencies
-        run: go get .
-        working-directory: test
+          
+      - name: Go Tidy
+        run: go mod tidy && git diff --exit-code
+
+      - name: Go Mod
+        run: go mod download
+
+      - name: Go mod verify
+        run: go mod verify
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.TERRATEST_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION }}
+
       - name: Run tests
         run: go test -v -timeout 60m
         working-directory: test
