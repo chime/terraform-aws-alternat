@@ -35,7 +35,7 @@ DEFAULT_HAS_IPV6 = True
 
 
 # Overrides socket.getaddrinfo to perform IPv4 lookups
-# See https://github.com/1debit/alternat/issues/87
+# See https://github.com/chime/terraform-aws-alternat/issues/87
 def disable_ipv6():
     prv_getaddrinfo = socket.getaddrinfo
     def getaddrinfo_ipv4(*args):

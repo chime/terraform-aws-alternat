@@ -2,14 +2,14 @@
 
 NAT Gateways are dead. Long live NAT instances!
 
-Built and released with 💚 by <a href="https://chime.com"><img src="/assets/Chime_company_logo.png" alt="Chime Engineering" width="146"/></a>
+Built and released with 💚 by <a href="https://chime.com"><img src="/assets/Chime_company_logo.png" alt="Chime Engineering" width="60"/></a>
 
-[![GitHub Actions](https://github.com/1debit/alternat/workflows/Build/badge.svg)](https://github.com/1debit/alternat/actions)
+[![GitHub Actions](https://github.com/chime/terraform-aws-alternat/workflows/Build/badge.svg)](https://github.com/chime/terraform-aws-alternat/actions)
 
 
 ## Background
 
-On AWS, [NAT devices](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat.html) are required for accessing the Internet from private VPC subnets. Usually, the best option is a NAT gateway, a fully managed NAT service. The [pricing structure of NAT gateway](https://aws.amazon.com/vpc/pricing/) includes charges of $.045 per hour per NAT Gateway, plus **$.045 per GB** processed. The former charge is reasonable at about $32.40 per month. However, the latter charge can be *extremely* expensive for larger traffic volumes.
+On AWS, [NAT devices](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat.html) are required for accessing the Internet from private VPC subnets. Usually, the best option is a NAT gateway, a fully managed NAT service. The [pricing structure of NAT gateway](https://aws.amazon.com/vpc/pricing/) includes charges of $0.045 per hour per NAT Gateway, plus **$0.045 per GB** processed. The former charge is reasonable at about $32.40 per month. However, the latter charge can be *extremely* expensive for larger traffic volumes.
 
 In addition to the direct NAT Gateway charges, there are also Data Transfer charges for outbound traffic leaving AWS (known as egress traffic). The cost varies depending on destination and volume, ranging from $0.09/GB to $0.01 per GB (after a free tier of 100GB). That’s right: traffic traversing the NAT Gateway is first charged for processing, then charged again for egress to the Internet.
 
@@ -41,7 +41,7 @@ Features:
 
 Read on to learn more about alterNAT.
 
-## Architecture overview
+## Architecture Overview
 
 ![Architecture diagram](/assets/architecture.png)
 
@@ -52,7 +52,7 @@ The two main elements of the NAT instance solution are:
 
 Both are deployed by the Terraform module located in [`modules/terraform-aws-alternat`](modules/terraform-aws-alternat).
 
-### NAT instance Auto Scaling Group and standby NAT Gateway
+### NAT Instance Auto Scaling Group and Standby NAT Gateway
 
 The solution deploys an Auto Scaling Group (ASG) for each provided public subnet. Each ASG contains a single instance. When the instance boots, the [user data](modules/terraform-aws-alternat/alternat.sh.tftpl) initializes the instance to do the NAT stuff.
 
@@ -65,7 +65,7 @@ By default, the ASGs are configured with a [maximum instance lifetime](https://d
 
 The standby NAT Gateway is a safety measure. It is only used if the NAT instance is actively being replaced, either due to the maximum instance lifetime or due to some other failure scenario.
 
-### replace-route Lambda Function
+### `replace-route` Lambda Function
 
 The purpose of [the replace-route Lambda Function](functions/replace-route) is to update the route table of the private subnets to route through the standby NAT gateway. It does this in response to two events:
 
@@ -96,7 +96,7 @@ For our use case, and for many others, this limitation is acceptable. Many clien
 
 The Internet is unreliable by design, so failure modes such as connection loss should be a consideration in any resilient system.
 
-### Edge cases
+### Edge Cases
 
 As described above, alterNAT uses the [`ReplaceRoute` API](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_ReplaceRoute.html) (among others) to switch the route in the event of a NAT instance failure or Auto Scaling termination event. One possible failure scenario could occur where the EC2 control plane is for some reason not functional (e.g. an outage within AWS) and a NAT instance fails at the same time. The replace-route function may be unable to automatically switch the route to the NAT Gateway because the control plane is down. One mitigation would be to attempt to manually replace the route for the impacted subnet(s) using the CLI or console. However, if the control plane is in fact down and no APIs are working, waiting until the issue is resolved may be the only option.
 
@@ -107,9 +107,9 @@ There are two ways to deploy alterNAT:
 - By building a Docker image and using AWS Lambda support for containers
 - By using AWS Lambda runtime for Python directly
 
-Use this project directly, as provided, or draw inspiration from it and use only the parts you need. We cut [releases](https://github.com/1debit/alternat/releases) following the [Semantic Versioning](https://semver.org/) method. We recommend pinning to our tagged releases or using the short commit SHA if you decide to use this repo directly.
+Use this project directly, as provided, or draw inspiration from it and use only the parts you need. We cut [releases](https://github.com/chime/terraform-aws-alternat/releases) following the [Semantic Versioning](https://semver.org/) method. We recommend pinning to our tagged releases or using the short commit SHA if you decide to use this repo directly.
 
-### Building and pushing the container image
+### Building and Pushing the Container Image
 
 Build and push the container image using the [`Dockerfile`](Dockerfile).
 
@@ -120,7 +120,7 @@ docker build . -t <your_registry_url>/<your_repo:<release tag or short git commi
 docker push <your_registry_url>/<your_repo:<release tag or short git commit sha>
 ```
 
-### Use the Terraform module
+### Use the Terraform Module
 
 Start by reviewing the available [input variables](modules/terraform-aws-alternat/variables.tf). Example usage:
 
@@ -143,7 +143,7 @@ data "aws_subnet" "subnet" {
 }
 
 module "alternat_instances" {
-  source = "git::https://github.com/1debit/alternat.git//modules/terraform-aws-alternat?ref=v0.3.3"
+  source = "git::https://github.com/chime/terraform-aws-alternat.git//modules/terraform-aws-alternat?ref=v0.3.3"
 
   alternat_image_uri = "0123456789012.dkr.ecr.us-east-1.amazonaws.com/alternat-functions-lambda"
   alternat_image_tag = "v0.3.3"
@@ -207,17 +207,17 @@ AlterNATively, you can remove the NAT Gateways and their EIPs from your existing
 
 While we'd like for this to be available on the Terraform Registry, it requires a specific repo naming convention and folder structure that we do not want to adopt.
 
-### Other considerations
+### Other Considerations
 
 - Read [the Amazon EC2 instance network bandwidth page](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-network-bandwidth.html) carefully. In particular:
 
-> To other Regions, an internet gateway, Direct Connect, or local gateways (LGW) – Traffic can utilize up to 50% of the network bandwidth available to a current generation instance with a minimum of 32 vCPUs. Bandwidth for a current generation instance with less than 32 vCPUs is limited to 5 Gbps.
+  > To other Regions, an internet gateway, Direct Connect, or local gateways (LGW) – Traffic can utilize up to 50% of the network bandwidth available to a current generation instance with a minimum of 32 vCPUs. Bandwidth for a current generation instance with less than 32 vCPUs is limited to 5 Gbps.
 
 - Hence if you need more than 5Gbps, make sure to use an instance type with at least 32 vCPUs, and divide the bandwidth in half. So the `c6gn.8xlarge` which offers 50Gbps guaranteed bandwidth will have 25Gbps available for egress to other regions, an internet gateway, etc.
 
 - It's wise to start by overprovisioning, observing patterns, and resizing if necessary. Don't be surprised by the network I/O credit mechanism explained in [the AWS EC2 docs](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-network-bandwidth.html) thusly:
 
-> Typically, instances with 16 vCPUs or fewer (size 4xlarge and smaller) are documented as having "up to" a specified bandwidth; for example, "up to 10 Gbps". These instances have a baseline bandwidth. To meet additional demand, they can use a network I/O credit mechanism to burst beyond their baseline bandwidth. Instances can use burst bandwidth for a limited time, typically from 5 to 60 minutes, depending on the instance size.
+  > Typically, instances with 16 vCPUs or fewer (size 4xlarge and smaller) are documented as having "up to" a specified bandwidth; for example, "up to 10 Gbps". These instances have a baseline bandwidth. To meet additional demand, they can use a network I/O credit mechanism to burst beyond their baseline bandwidth. Instances can use burst bandwidth for a limited time, typically from 5 to 60 minutes, depending on the instance size.
 
 - [SSM Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html) is enabled by default. To view NAT connections on an instance, use sessions manager to connect, then run `sudo cat /proc/net/nf_conntrack`. Disable SSM by setting `enable_ssm=false`.
 
@@ -244,9 +244,7 @@ While we'd like for this to be available on the Terraform Registry, it requires 
     nat_gateway_id      = "nat-..."
   ```
 
-
-
-## Future work
+## Future Work
 
 We would like this benefit to benefit as many users as possible. Possible future enhancements include:
 
@@ -257,7 +255,7 @@ We would like this benefit to benefit as many users as possible. Possible future
 
 ## Contributing
 
-[Issues](https://github.com/1debit/alternat/issues) and [pull requests](https://github.com/1debit/alternat/pulls) are most welcome!
+[Issues](https://github.com/chime/terraform-aws-alternat/issues) and [pull requests](https://github.com/chime/terraform-aws-alternat/pulls) are most welcome!
 
 alterNAT is intended to be a safe, welcoming space for collaboration. Contributors are expected to adhere to the [Contributor Covenant code of conduct](CODE_OF_CONDUCT.md).
 
@@ -266,39 +264,39 @@ alterNAT is intended to be a safe, welcoming space for collaboration. Contributo
 
 To test locally, install the AWS SAM CLI client:
 
-```
+```shell
 brew tap aws/tap
 brew install aws-sam-cli
 ```
 
 Build sam and invoke the functions:
 
-```
+```shell
 sam build
 sam local invoke <FUNCTION NAME> -e <event_filename>.json
 ```
 
 Example:
 
-```
+```shell
 cd functions/replace-route
 sam local invoke AutoScalingTerminationFunction -e sns-event.json
 sam local invoke ConnectivityTestFunction -e cloudwatch-event.json
 ```
 
 
-## Making actual calls to AWS for testing
+## Making Actual Calls to AWS for Testing
 
 In the first terminal
 
-```
+```shell
 cd functions/replace-route
 sam build && sam local start-lambda # This will start up a docker container running locally
 ```
 
 In a second terminal, invoke the function back in terminal one:
 
-```
+```shell
 cd functions/replace-route
 aws lambda invoke --function-name "AutoScalingTerminationFunction" --endpoint-url "http://127.0.0.1:3001" --region us-east-1 --cli-binary-format raw-in-base64-out --payload file://./sns-event.json --no-verify-ssl out.txt
 aws lambda invoke --function-name "ConnectivityTestFunction" --endpoint-url "http://127.0.0.1:3001" --region us-east-1 --cli-binary-format raw-in-base64-out --payload file://./cloudwatch-event.json --no-verify-ssl out.txt
