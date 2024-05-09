@@ -1,0 +1,37 @@
+# https://golangci-lint.run/usage/configuration/#config-file
+run:
+  allow-parallel-runners: true
+  timeout: 5m
+  go: '1.20'
+  skip-dirs-use-default: false
+
+linters:
+  enable:
+    - errcheck
+    - errorlint
+    - exportloopref
+    - gocritic
+    - gofmt
+    - goimports
+    - gosec
+    - govet
+    - misspell
+    - revive
+    - staticcheck
+    - tenv
+    - unconvert
+    - unused
+    - unparam
+
+issues:
+  # Excluding configuration per-path, per-linter, per-text and per-source
+  exclude-rules:
+    - text: "G306:"
+      linters:
+        - gosec
+    - text: "G204:"
+      linters:
+        - gosec
+    - text: "G112:"
+      linters:
+        - gosec
