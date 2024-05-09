@@ -15,7 +15,6 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
-	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/gruntwork-io/terratest/modules/random"
 	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/gruntwork-io/terratest/modules/ssh"
@@ -37,7 +36,7 @@ func TestAlternat(t *testing.T) {
 
 	exampleFolder := test_structure.CopyTerraformFolderToTemp(t, "..", "examples/")
 
-	logger := logger.Logger{}
+	// logger := logger.Logger{}
 	
 	defer test_structure.RunTestStage(t, "cleanup", func() {
 		terraformOptions := test_structure.LoadTerraformOptions(t, exampleFolder)
@@ -47,7 +46,7 @@ func TestAlternat(t *testing.T) {
 	})
 	
 	test_structure.RunTestStage(t, "setup", func() {
-		awsRegion := terraws.GetRandomStableRegion(t, nil, nil)
+		awsRegion := "us-east-1"
 		
 		uniqueID := random.UniqueId()
 		keyPair := ssh.GenerateRSAKeyPair(t, 2048)
@@ -155,7 +154,6 @@ net.ipv4.ip_local_port_range = 1024	65535
 			},
 		)
 		assert.Contains(t, output, "Configuration completed successfully!", "Success string not found in user-data log: %s", output)
-		logger.Logf(t, "Userdata log: %s", output)
 	})
 			
 	// Delete the egress rules that allow access to the Internet from the instance, then 
