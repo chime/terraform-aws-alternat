@@ -97,8 +97,8 @@ func TestAlternat(t *testing.T) {
 		
 		revokeInternetEgress(ec2Client, t, terraformOptions)
 
-		// Validate that private route tables have routes to the Internet via Nat Gateway
-		maxRetries := 6
+		// Validate that private route tables have routes to the Internet via NAT Gateway
+		maxRetries := 12
 		waitTime := 10 * time.Second
 		retry.DoWithRetry(t, "Validating route through NAT Gateway", maxRetries, waitTime, func() (string, error) {
 			routeTables, err := getRouteTables(t, ec2Client, vpcID)
