@@ -42,7 +42,7 @@ func TestAlternat(t *testing.T) {
 	
 	test_structure.RunTestStage(t, "setup", func() {
 		//awsRegion := terratestaws.GetRandomStableRegion(t, nil, nil)
-		awsRegion := "us-west-2"
+		awsRegion := "us-east-1"
 		terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 			TerraformDir: "../example",
 			Vars: map[string]interface{}{
