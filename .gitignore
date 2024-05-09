@@ -3,4 +3,4 @@
 **/__pycache__
 **/terraform.tfstate*
 **/.terraform*
-test/.test-data
+**/.test-data

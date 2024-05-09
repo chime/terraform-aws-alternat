@@ -22,6 +22,12 @@ variable "enable_nat_gateway" {
   default     = false
 }
 
+variable "nat_instance_key_name" {
+  description = "The name of the key pair to use for the NAT instances."
+  type        = string
+  default     = ""
+}
+
 variable "private_subnets" {
   description = "List of private subnets to use in the example VPC."
   type        = list(string)

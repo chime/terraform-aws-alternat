@@ -47,6 +47,7 @@ module "alternat" {
   #alternat_image_uri         = "188238883601.dkr.ecr.us-west-2.amazonaws.com/alternat"
   #alternat_image_tag         = "v0.4.9"
 
-  nat_instance_type = var.alternat_instance_type
+  nat_instance_type     = var.alternat_instance_type
+  nat_instance_key_name = var.nat_instance_key_name
   #connectivity_test_check_urls = ["https://www.google.com", "https://www.example.com"]
 }

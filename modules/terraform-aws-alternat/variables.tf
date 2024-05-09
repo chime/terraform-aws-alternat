@@ -127,6 +127,12 @@ variable "nat_instance_iam_role_name" {
   default     = ""
 }
 
+variable "nat_instance_key_name" {
+  description = "The name of the key pair to use for the NAT instance. This is primarily used for testing."
+  type        = string
+  default     = ""
+}
+
 variable "nat_instance_lifecycle_hook_role_name" {
   description = "Name to use for the IAM role used by the NAT instance lifecycle hook. Must be globally unique in this AWS account. Defaults to alternat-lifecycle-hook as a prefix."
   type        = string
