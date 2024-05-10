@@ -29,7 +29,7 @@ import (
 func TestAlternat(t *testing.T) {
 	// Uncomment any of the following lines to skip that part of the test.
 	// This is useful for iterating during test development.
-	// See https://terratest.gruntwork.io/docs/testing-best-practices/iterating-locally-using-test-stages/	
+	// See https://terratest.gruntwork.io/docs/testing-best-practices/iterating-locally-using-test-stages/
 	// os.Setenv("SKIP_setup", "true")
 	// os.Setenv("SKIP_apply_vpc", "true")
 	// os.Setenv("SKIP_apply_alternat_basic", "true")
@@ -260,9 +260,6 @@ func getNatInstancePublicIp(t *testing.T, ec2Client *ec2.Client) (string, error)
 		if err != nil {
 			return "", err
 		}
-
-		logger := logger.Logger{}
-		logger.Logf(t, "Reservations: %v", result.Reservations)
 
 		ip := aws.ToString(result.Reservations[0].Instances[0].PublicIpAddress)
 		if ip == "" {
