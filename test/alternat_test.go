@@ -27,6 +27,9 @@ import (
 )
 
 func TestAlternat(t *testing.T) {
+	// Uncomment any of the following lines to skip that part of the test.
+	// This is useful for iterating during test development.
+	// See https://terratest.gruntwork.io/docs/testing-best-practices/iterating-locally-using-test-stages/	
 	// os.Setenv("SKIP_setup", "true")
 	// os.Setenv("SKIP_apply_vpc", "true")
 	// os.Setenv("SKIP_apply_alternat_basic", "true")

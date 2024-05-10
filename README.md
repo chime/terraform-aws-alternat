@@ -4,7 +4,7 @@ NAT Gateways are dead. Long live NAT instances!
 
 Built and released with 💚 by <a href="https://chime.com"><img src="/assets/Chime_company_logo.png" alt="Chime Engineering" width="146"/></a>
 
-[![GitHub Actions](https://github.com/1debit/alternat/workflows/Test/badge.svg)](https://github.com/1debit/alternat/actions)
+[![GitHub Actions](https://github.com/chime/terraform-aws-alternat/workflows/Test/badge.svg)](https://github.com/chime/terraform-aws-alternat/actions)
 
 
 ## Background
@@ -263,6 +263,12 @@ alterNAT is intended to be a safe, welcoming space for collaboration. Contributo
 
 
 ## Local Testing
+
+### Terraform module testing
+
+The `test/` directory uses the [Terratest](https://terratest.gruntwork.io/) library to run integration tests on the Terraform module. The test uses the example located in `examples/` to set up Alternat, runs validations, then destroys the resources. Unfortunately, because of how the [Lambda Hyperplane ENI](https://docs.aws.amazon.com/lambda/latest/dg/foundation-networking.html#foundation-nw-eni) deletion process works, this takes a very long time (about 35 minutes) to run.
+
+### Lambda function testing
 
 To test locally, install the AWS SAM CLI client:
 
