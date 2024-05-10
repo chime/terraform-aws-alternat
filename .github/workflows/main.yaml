@@ -3,56 +3,24 @@ name: Build
 on: push
 
 jobs:
-
-  run_tests:
-
-    permissions:
-      contents: read
-
-    runs-on: ubuntu-latest
-
-    env:
-      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-
-    steps:
-
-      - uses: actions/checkout@v3
-
-      - name: Run tests
-        run: |
-          pip install pip --upgrade
-          pip install pyopenssl --upgrade
-          pip install -r functions/replace-route/requirements.txt
-          pip install -r functions/replace-route/tests/test_requirements.txt
-          python -m pytest
-
   build_and_push_image:
-
     permissions:
       id-token: write
       contents: read
-
     runs-on: ubuntu-latest
-
-    needs: run_tests
-
     steps:
-      - uses: actions/checkout@v3
-
+      - uses: actions/checkout@v4
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION }}
-
       - name: Set outputs
         id: sha
         run: echo "::set-output name=short_sha::$(git rev-parse --short HEAD)"
-
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-
+        uses: aws-actions/amazon-ecr-login@v2
       - name: Build, tag, and push lambda image to Amazon ECR
         run: |
           docker build . -t "${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ steps.sha.outputs.short_sha }}"

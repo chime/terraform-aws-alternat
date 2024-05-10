@@ -235,6 +235,8 @@ resource "aws_launch_template" "nat_instance_template" {
 
   instance_type = var.nat_instance_type
 
+  key_name = var.nat_instance_key_name
+
   metadata_options {
     http_endpoint               = "enabled"
     http_tokens                 = "required"

@@ -1,3 +1,6 @@
 **/.aws-sam/
 **/out.txt
 **/__pycache__
+**/terraform.tfstate*
+**/.terraform*
+**/.test-data
