@@ -20,8 +20,9 @@ jobs:
           pip install -r functions/replace-route/tests/test_requirements.txt
           python -m pytest
 
-  golang_lint:
+  terraform_tests:
     permissions:
+      id-token: write
       contents: read
     runs-on: ubuntu-latest
     defaults:
@@ -34,46 +35,23 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: test/go.mod
+          cache-dependency-path: test/go.sum
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+      - name: Go Tidy
+        run: go mod tidy && git diff --exit-code
+
+      - name: Go Mod
+        run: go mod download
+
+      - name: Go mod verify
+        run: go mod verify
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          version: v1.53
-          working-directory: ./test
-          
-          # use config in .golangci.yaml to configure the action further
-  # terraform_tests:
-  #   permissions:
-  #     id-token: write 
-  #     contents: read
-  #   runs-on: ubuntu-latest
-  #   defaults:
-  #     run:
-  #       working-directory: ./test
-  #   steps:
-  #     - uses: actions/checkout@v4
+          role-to-assume: ${{ secrets.TERRATEST_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-  #     - name: Install Go
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version-file: test/go.mod
-  #         cache-dependency-path: test/go.sum
+      - name: Run tests
+        run: go test -v -timeout 60m
 
-      # - name: Go Tidy
-      #   run: go mod tidy && git diff --exit-code
-
-      # - name: Go Mod
-      #   run: go mod download
-
-      # - name: Go mod verify
-      #   run: go mod verify
-
-      # - name: Configure AWS Credentials
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: ${{ secrets.TERRATEST_ROLE_TO_ASSUME }}
-      #     aws-region: ${{ secrets.AWS_REGION }}
-
-      # - name: Run tests
-      #   run: go test -v -timeout 60m
-          
