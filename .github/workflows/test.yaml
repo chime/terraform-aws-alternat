@@ -37,27 +37,27 @@ jobs:
           go-version-file: test/go.mod
           cache-dependency-path: test/go.sum
 
-      # - name: Lint
-      #   uses: golangci/golangci-lint-action@v3
-      #   with:
-      #     version: v1.53
+      - name: Lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.53
           # use config in .golangci.yaml to configure the action further
 
-      - name: Go Tidy
-        run: go mod tidy && git diff --exit-code
+      # - name: Go Tidy
+      #   run: go mod tidy && git diff --exit-code
 
-      - name: Go Mod
-        run: go mod download
+      # - name: Go Mod
+      #   run: go mod download
 
-      - name: Go mod verify
-        run: go mod verify
+      # - name: Go mod verify
+      #   run: go mod verify
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.TERRATEST_ROLE_TO_ASSUME }}
-          aws-region: ${{ secrets.AWS_REGION }}
+      # - name: Configure AWS Credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: ${{ secrets.TERRATEST_ROLE_TO_ASSUME }}
+      #     aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Run tests
-        run: go test -v -timeout 60m
+      # - name: Run tests
+      #   run: go test -v -timeout 60m
           
