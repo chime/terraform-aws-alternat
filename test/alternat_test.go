@@ -15,6 +15,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
+	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/gruntwork-io/terratest/modules/random"
 	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/gruntwork-io/terratest/modules/ssh"
@@ -114,7 +115,7 @@ func TestAlternat(t *testing.T) {
 		awsKeyPair := test_structure.LoadEc2KeyPair(t, exampleFolder)
 
 		authorizeSshIngress(t, ec2Client, sgId)
-		ip, err := getNatInstancePublicIp(ec2Client)
+		ip, err := getNatInstancePublicIp(t, ec2Client)
 		require.NoError(t, err)
 
 		natInstance := ssh.Host{
@@ -239,7 +240,7 @@ func getRouteTables(t *testing.T, client *ec2.Client, vpcID string) ([]ec2types.
 	return result.RouteTables, nil
 }
 
-func getNatInstancePublicIp(ec2Client *ec2.Client) (string, error) {
+func getNatInstancePublicIp(t *testing.T, ec2Client *ec2.Client) (string, error) {
 	namePrefix := "alternat-"
 	input := &ec2.DescribeInstancesInput{
 		Filters: []ec2types.Filter{
@@ -256,6 +257,10 @@ func getNatInstancePublicIp(ec2Client *ec2.Client) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
+		logger := logger.Logger{}
+		logger.Logf(t, "Reservations: %v", result.Reservations)
+
 		ip := aws.ToString(result.Reservations[0].Instances[0].PublicIpAddress)
 		if ip == "" {
 			return "", fmt.Errorf("Public IP not found")
