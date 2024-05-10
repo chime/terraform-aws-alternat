@@ -39,6 +39,7 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: v1.53
+          working-directory: ./test
           
           # use config in .golangci.yaml to configure the action further
   # terraform_tests:
