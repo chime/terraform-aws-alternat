@@ -1,5 +1,5 @@
 variable "additional_instance_policies" {
-  description = "Additional policies for the HA NAT instance IAM role."
+  description = "Additional policies for the Alternat instance IAM role."
   type = list(object({
     policy_name = string
     policy_json = string
@@ -8,13 +8,13 @@ variable "additional_instance_policies" {
 }
 
 variable "alternat_image_tag" {
-  description = "The tag of the container image for the HA NAT Lambda functions."
+  description = "The tag of the container image for the Alternat Lambda functions."
   type        = string
   default     = "latest"
 }
 
 variable "alternat_image_uri" {
-  description = "The URI of the container image for the HA NAT Lambda functions."
+  description = "The URI of the container image for the Alternat Lambda functions."
   type        = string
   default     = ""
 }
@@ -68,7 +68,7 @@ variable "enable_lambda_endpoint" {
 }
 
 variable "enable_ssm" {
-  description = "Whether to enable SSM on the HA NAT instances."
+  description = "Whether to enable SSM on the Alternat instances."
   type        = bool
   default     = true
 }

@@ -15,6 +15,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
+	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/gruntwork-io/terratest/modules/random"
 	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/gruntwork-io/terratest/modules/ssh"
@@ -24,6 +25,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// Maintainer's note: This test will currently cause name collisions if multiple tests run in parallel
+// in the same account. This is because the test uses a fixed name prefix for resources. This could be fixed
+// by using GetRandomStableRegion and updating some resources (such as IAM role and CloudWatch event name)
+// to use a random suffix.
 
 func TestAlternat(t *testing.T) {
 	// Uncomment any of the following lines to skip that part of the test.
@@ -169,7 +175,7 @@ net.ipv4.ip_local_port_range = 1024	65535
 		// Validate that private route tables have routes to the Internet via NAT Gateway
 		maxRetries := 12
 		waitTime := 10 * time.Second
-		retry.DoWithRetry(t, "Validating route through NAT Gateway", maxRetries, waitTime, func() (string, error) {
+		output := retry.DoWithRetry(t, "Validating route through NAT Gateway", maxRetries, waitTime, func() (string, error) {
 			routeTables, err := getRouteTables(t, ec2Client, vpcID)
 			require.NoError(t, err)
 			for _, rt := range routeTables {
@@ -181,6 +187,8 @@ net.ipv4.ip_local_port_range = 1024	65535
 			}
 			return "All private route tables route through NAT Gateway", nil
 		})
+		logger := logger.Logger{}
+		logger.Logf(t, output)	
 		updateEgress(t, ec2Client, sgId, false)
 	})
 }
@@ -250,6 +258,10 @@ func getNatInstancePublicIp(t *testing.T, ec2Client *ec2.Client) (string, error)
 				Name:   aws.String("tag:Name"),
 				Values: []string{namePrefix + "*"},
 			},
+			{
+				Name:   aws.String("instance-state-name"),
+				Values: []string{"running"},
+			},
 		},
 	}
 	maxRetries := 6
@@ -260,11 +272,11 @@ func getNatInstancePublicIp(t *testing.T, ec2Client *ec2.Client) (string, error)
 			return "", err
 		}
 
-		ip := aws.ToString(result.Reservations[0].Instances[0].PublicIpAddress)
-		if ip == "" {
+		publicIp := aws.ToString(result.Reservations[0].Instances[0].PublicIpAddress)
+		if publicIp == "" {
 			return "", fmt.Errorf("Public IP not found")
 		}
-		return ip, nil
+		return publicIp, nil
 	})
 
 	return ip, nil

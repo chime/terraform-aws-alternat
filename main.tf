@@ -193,7 +193,7 @@ data "cloudinit_config" "config" {
 
   part {
     content_type = "text/x-shellscript"
-    content      = file("${path.module}/../../scripts/alternat.sh")
+    content      = file("${path.module}/scripts/alternat.sh")
   }
 
   dynamic "part" {

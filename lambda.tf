@@ -11,7 +11,7 @@ locals {
 data "archive_file" "lambda" {
   count       = var.lambda_package_type == "Zip" ? 1 : 0
   type        = "zip"
-  source_dir  = "${path.module}/../../functions/replace-route"
+  source_dir  = "${path.module}/functions/replace-route"
   excludes    = ["__pycache__"]
   output_path = var.lambda_zip_path
 }
