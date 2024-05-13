@@ -204,10 +204,6 @@ If you are using the open source terraform-aws-vpc module, you can set `nat_gate
 
 AlterNATively, you can remove the NAT Gateways and their EIPs from your existing configuration and then `terraform import` them to allow alterNAT to manage them.
 
-#### Why isn't this module published on the Terraform registry?
-
-While we'd like for this to be available on the Terraform Registry, it requires a specific repo naming convention and folder structure that we do not want to adopt.
-
 ### Other Considerations
 
 - Read [the Amazon EC2 instance network bandwidth page](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-network-bandwidth.html) carefully. In particular:
