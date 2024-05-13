@@ -5,7 +5,7 @@ NAT Gateways are dead. Long live NAT instances!
 Built and released with 💚 by <a href="https://chime.com"><img src="/assets/Chime_company_logo.png" alt="Chime Engineering" width="60"/></a>
 
 
-[![GitHub Actions](https://github.com/chime/terraform-aws-alternat/workflows/Test/badge.svg)](https://github.com/chime/terraform-aws-alternat/actions)
+[![GitHub Actions](https://github.com/chime/terraform-aws-alternat/workflows/test.yaml/badge.svg)](https://github.com/chime/terraform-aws-alternat/actions)
 
 
 ## Background
