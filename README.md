@@ -51,11 +51,11 @@ The two main elements of the NAT instance solution are:
 1. The NAT instance Auto Scaling Groups, one per zone, with a corresponding standby NAT Gateway
 1. The replace-route Lambda function
 
-Both are deployed by the Terraform module located in [`modules/terraform-aws-alternat`](modules/terraform-aws-alternat).
+Both are deployed by the Terraform module.
 
 ### NAT Instance Auto Scaling Group and Standby NAT Gateway
 
-The solution deploys an Auto Scaling Group (ASG) for each provided public subnet. Each ASG contains a single instance. When the instance boots, the [user data](modules/terraform-aws-alternat/alternat.sh.tftpl) initializes the instance to do the NAT stuff.
+The solution deploys an Auto Scaling Group (ASG) for each provided public subnet. Each ASG contains a single instance. When the instance boots, the [user data](alternat.sh.tftpl) initializes the instance to do the NAT stuff.
 
 By default, the ASGs are configured with a [maximum instance lifetime](https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-max-instance-lifetime.html). This is to facilitate periodic replacement of the instance to automate patching. When the maximum instance lifetime is reached (14 days by default), the following occurs:
 
@@ -123,7 +123,7 @@ docker push <your_registry_url>/<your_repo:<release tag or short git commit sha>
 
 ### Use the Terraform Module
 
-Start by reviewing the available [input variables](modules/terraform-aws-alternat/variables.tf). Example usage:
+Start by reviewing the available [input variables](variables.tf). Example usage:
 
 ```hcl
 locals {
@@ -144,7 +144,7 @@ data "aws_subnet" "subnet" {
 }
 
 module "alternat_instances" {
-  source = "git::https://github.com/chime/terraform-aws-alternat.git//modules/terraform-aws-alternat?ref=v0.3.3"
+  source = "chime/alternat/aws?ref=v0.3.3"
 
   alternat_image_uri = "0123456789012.dkr.ecr.us-east-1.amazonaws.com/alternat-functions-lambda"
   alternat_image_tag = "v0.3.3"
