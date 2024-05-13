@@ -36,7 +36,7 @@ locals {
 module "alternat" {
   # To use Alternat from the Terraform Registry:
   # source = "chime/alternat/aws"
-  source = ".."
+  source = "./.."
 
   create_nat_gateways                = var.create_nat_gateways
   ingress_security_group_cidr_blocks = var.private_subnets
