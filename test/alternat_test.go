@@ -253,6 +253,10 @@ func getNatInstancePublicIp(t *testing.T, ec2Client *ec2.Client) (string, error)
 				Name:   aws.String("tag:Name"),
 				Values: []string{namePrefix + "*"},
 			},
+			{
+				Name:   aws.String("instance-state-name"),
+				Values: []string{"running"},
+			},
 		},
 	}
 	maxRetries := 6
