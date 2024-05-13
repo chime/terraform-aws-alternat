@@ -26,6 +26,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Maintainer's note: This test will currently cause name collisions if multiple tests run in parallel
+// in the same account. This is because the test uses a fixed name prefix for resources. This could be fixed
+// by using GetRandomStableRegion and updating some resources (such as IAM role and CloudWatch event name)
+// to use a random suffix.
+
 func TestAlternat(t *testing.T) {
 	// Uncomment any of the following lines to skip that part of the test.
 	// This is useful for iterating during test development.
