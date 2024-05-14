@@ -123,13 +123,14 @@ docker push <your_registry_url>/<your_repo:<release tag or short git commit sha>
 
 ### Use the Terraform Module
 
-Start by reviewing the available [input variables](variables.tf). Example usage:
+Start by reviewing the available [input variables](variables.tf).
+
+Example usage using the [terraform module](https://registry.terraform.io/modules/chime/alternat/aws/latest):
 
 ```hcl
 locals {
   vpc_az_maps = [
-    for index, rt in module.vpc.private_route_table_ids
-    : {
+    for index, rt in module.vpc.private_route_table_ids : {
       az                 = data.aws_subnet.subnet[index].availability_zone
       route_table_ids    = [rt]
       public_subnet_id   = module.vpc.public_subnets[index]
@@ -144,7 +145,9 @@ data "aws_subnet" "subnet" {
 }
 
 module "alternat_instances" {
-  source = "chime/alternat/aws?ref=v0.3.3"
+  source  = "chime/alternat/aws"
+  # It's recommended to pin every module to a specific version
+  # version = "x.x.x"
 
   alternat_image_uri = "0123456789012.dkr.ecr.us-east-1.amazonaws.com/alternat-functions-lambda"
   alternat_image_tag = "v0.3.3"
