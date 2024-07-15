@@ -93,9 +93,11 @@ In the design described above, NAT instances are intentionally terminated for au
 
 Importantly, **connectivity to the Internet is never lost**. A route to the Internet is available at all times.
 
-For our use case, and for many others, this limitation is acceptable. Many clients will open new connections. Other clients may use primarily short-lived connections that retry after a failure. For some use cases - for example, file transfers, or other operations that are unable to recover from failures - this drawback may be unacceptable. In this case, the max instance lifetime can be disabled, and route changes would only occur in the unlikely event that a NAT instance failed for another reason, in which case the connectivity checker automatically redirects through the NAT Gateway.
+For our use case, and for many others, this limitation is acceptable. Many clients will open new connections. Other clients may use primarily short-lived connections that retry after a failure.
 
-The Internet is unreliable by design, so failure modes such as connection loss should be a consideration in any resilient system.
+For some use cases - for example, file transfers, or other operations that are unable to recover from failures - this drawback may be unacceptable. In this case, the max instance lifetime can be disabled, and route changes would only occur in the unlikely event that a NAT instance failed for another reason, in which case the connectivity checker automatically redirects through the NAT Gateway.
+
+[The Internet is unreliable](https://en.wikipedia.org/wiki/Fallacies_of_distributed_computing), so failure modes such as connection loss should be a consideration in any resilient system.
 
 ### Edge Cases
 
@@ -244,15 +246,6 @@ AlterNATively, you can remove the NAT Gateways and their EIPs from your existing
     nat_gateway_id      = "nat-..."
   ```
 
-## Future Work
-
-We would like this benefit to benefit as many users as possible. Possible future enhancements include:
-
-- CloudFormation implementation
-- Pulumi implementation
-- Support for maintenance windows
-- Addition of a CloudWatch dashboard
-
 ## Contributing
 
 [Issues](https://github.com/chime/terraform-aws-alternat/issues) and [pull requests](https://github.com/chime/terraform-aws-alternat/pulls) are most welcome!
@@ -291,7 +284,7 @@ sam local invoke ConnectivityTestFunction -e cloudwatch-event.json
 ```
 
 
-## Making Actual Calls to AWS for Testing
+## Testing with SAM
 
 In the first terminal
 
