@@ -31,19 +31,7 @@ locals {
     }
     : {}
   )
-  lambda_endpoint = (
-    var.enable_lambda_endpoint
-    ? {
-      lambda = {
-        service             = "lambda"
-        private_dns_enabled = true
-        subnet_ids          = local.az_private_subnets
-        tags                = { Name = "lambda-vpc-endpoint" }
-      }
-    }
-    : {}
-  )
-  endpoints = merge(local.ec2_endpoint, local.lambda_endpoint)
+  endpoints = local.ec2_endpoint
 
   # Must provide exactly 1 EIP per AZ
   # var.nat_instance_eip_ids ignored if doesn't match AZ count
