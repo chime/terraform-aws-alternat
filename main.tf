@@ -31,7 +31,6 @@ locals {
     }
     : {}
   )
-  endpoints = local.ec2_endpoint
 
   # Must provide exactly 1 EIP per AZ
   # var.nat_instance_eip_ids ignored if doesn't match AZ count
@@ -445,7 +444,7 @@ locals {
 }
 
 resource "aws_security_group" "vpc_endpoint" {
-  count = length(local.endpoints) > 0 ? 1 : 0
+  count = length(local.ec2_endpoint) > 0 ? 1 : 0
 
   name_prefix = "ec2-vpc-endpoints-"
   description = "Allow TLS from the VPC CIDR to the AWS API."
@@ -471,13 +470,13 @@ resource "aws_security_group" "vpc_endpoint" {
 }
 
 module "vpc_endpoints" {
-  count = length(local.endpoints) > 0 ? 1 : 0
+  count = length(local.ec2_endpoint) > 0 ? 1 : 0
 
   source             = "terraform-aws-modules/vpc/aws//modules/vpc-endpoints"
   version            = "~> 3.14.0"
   vpc_id             = var.vpc_id
   security_group_ids = [aws_security_group.vpc_endpoint[0].id]
-  endpoints          = local.endpoints
+  endpoints          = local.ec2_endpoint
   tags               = var.tags
 }
 
