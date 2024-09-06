@@ -61,12 +61,6 @@ variable "enable_ec2_endpoint" {
   default     = true
 }
 
-variable "enable_lambda_endpoint" {
-  description = "Whether to create a VPC endpoint to Lambda for Internet Connectivity testing."
-  type        = bool
-  default     = true
-}
-
 variable "enable_ssm" {
   description = "Whether to enable SSM on the Alternat instances."
   type        = bool
