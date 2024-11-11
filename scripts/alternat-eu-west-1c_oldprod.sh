@@ -186,6 +186,8 @@ echo "Beginning self-managed NAT configuration"
 configure_nat
 disable_source_dest_check
 associate_eip
+echo "Sleep for 2 minutes before replacing routes"
+sleep 120
 configure_route_table
 echo "Configuration completed successfully!"
 echo "Installing node exporter"
