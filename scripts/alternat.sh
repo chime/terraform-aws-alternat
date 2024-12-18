@@ -176,8 +176,6 @@ export AWS_DEFAULT_OUTPUT="text"
 
 # Disable pager output
 # https://docs.aws.amazon.com/cli/latest/userguide/cli-usage-pagination.html#cli-usage-pagination-clientside
-# This is not needed in aws cli v1 which is installed on the current version of Amazon Linux 2.
-# However, it may be needed to prevent breakage if they update to cli v2 in the future.
 export AWS_PAGER=""
 
 # Set Instance Identity URI
