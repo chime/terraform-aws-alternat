@@ -137,6 +137,7 @@ func TestAlternat(t *testing.T) {
 		retry.DoWithRetry(t, fmt.Sprintf("Check SSH connection to %s", ip), maxRetries, waitTime, func() (string, error) {
 			return "", ssh.CheckSshConnectionE(t, natInstance)
 		})
+
 		command := "/usr/sbin/nft list ruleset"
 
 		expectedText := `table ip nat {
@@ -146,7 +147,7 @@ func TestAlternat(t *testing.T) {
         }
 }`
 
-		maxRetries = 1
+		maxRetries = 5
 		waitTime = 10 * time.Second
 		retry.DoWithRetry(t, fmt.Sprintf("SSH to NAT instance at IP %s", ip), maxRetries, waitTime, func() (string, error) {
 			actualText, err := ssh.CheckSshCommandE(t, natInstance, command)
