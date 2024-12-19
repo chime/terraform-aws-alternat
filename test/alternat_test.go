@@ -138,7 +138,7 @@ func TestAlternat(t *testing.T) {
 			return "", ssh.CheckSshConnectionE(t, natInstance)
 		})
 
-		command := "/usr/sbin/nft list ruleset"
+		command := "sudo /usr/sbin/nft list ruleset"
 
 		expectedText := `table ip nat {
         chain postrouting {
