@@ -34,7 +34,7 @@ Features:
 
 * Self-provisioned NAT instances in Auto Scaling Groups
 * Standby NAT Gateways with health checks and automated failover, facilitated by a Lambda function
-* Vanilla Amazon Linux 2 AMI (no AMI management requirement)
+* Vanilla Amazon Linux 2023 AMI (no AMI management requirement)
 * Optional use of SSM for connecting to the NAT instances
 * Max instance lifetimes (no long-lived instances!) with automated failover
 * A Terraform module to set everything up

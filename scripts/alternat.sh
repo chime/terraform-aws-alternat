@@ -35,13 +35,16 @@ validate_var() {
 # configure_nat() sets up Linux to act as a NAT device.
 # See https://docs.aws.amazon.com/vpc/latest/userguide/VPC_NAT_Instance.html#NATInstance
 configure_nat() {
-   echo "Beginning NAT configuration"
+   dnf -y install nftables
 
-   echo "Determining the MAC address on eth0"
-   local eth0_mac="$(cat /sys/class/net/eth0/address)" || panic "Unable to determine MAC address on eth0."
-   echo "Found MAC $eth0_mac for eth0."
+   local nic_name="$(ip route show | grep default | sed -n 's/.*dev \([^\ ]*\).*/\1/p')"
+   echo "Found interface name ${nic_name}"
 
-   local vpc_cidr_uri="http://169.254.169.254/latest/meta-data/network/interfaces/macs/$eth0_mac/vpc-ipv4-cidr-blocks"
+   echo "Determining the MAC address on ${nic_name}"
+   local nic_mac="$(cat /sys/class/net/${nic_name}/address)" || panic "Unable to determine MAC address on ${nic_name}."
+   echo "Found MAC ${nic_mac} for ${nic_name}."
+
+   local vpc_cidr_uri="http://169.254.169.254/latest/meta-data/network/interfaces/macs/${nic_mac}/vpc-ipv4-cidr-blocks"
    echo "Metadata location for vpc ipv4 ranges: $vpc_cidr_uri"
 
    local vpc_cidr_ranges=$(CURL_WITH_TOKEN "$vpc_cidr_uri")
@@ -56,18 +59,19 @@ configure_nat() {
    echo "Enabling NAT..."
    # Read more about these settings here: https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt
 
-   sysctl -q -w net.ipv4.ip_forward=1 net.ipv4.conf.eth0.send_redirects=0 net.ipv4.ip_local_port_range="1024 65535" ||
+   sysctl -q -w "net.ipv4.ip_forward"=1 "net.ipv4.conf.$nic_name.send_redirects"=0 "net.ipv4.ip_local_port_range"="1024 65535" ||
       panic
+
+   nft add table ip nat
+   nft add chain ip nat postrouting { type nat hook postrouting priority 100 \; }
 
    for cidr in "${vpc_cidrs[@]}";
    do
-      (iptables -t nat -C POSTROUTING -o eth0 -s "$cidr" -j MASQUERADE 2> /dev/null ||
-      iptables -t nat -A POSTROUTING -o eth0 -s "$cidr" -j MASQUERADE) ||
-      panic
+      nft add rule ip nat postrouting ip saddr "$cidr" oif "$nic_name" masquerade
    done
 
-   sysctl net.ipv4.ip_forward net.ipv4.conf.eth0.send_redirects net.ipv4.ip_local_port_range
-   iptables -n -t nat -L POSTROUTING
+   sysctl "net.ipv4.ip_forward" "net.ipv4.conf.${nic_name}.send_redirects" "net.ipv4.ip_local_port_range"
+   nft list ruleset
 
    echo "NAT configuration complete"
 }
@@ -172,8 +176,6 @@ export AWS_DEFAULT_OUTPUT="text"
 
 # Disable pager output
 # https://docs.aws.amazon.com/cli/latest/userguide/cli-usage-pagination.html#cli-usage-pagination-clientside
-# This is not needed in aws cli v1 which is installed on the current version of Amazon Linux 2.
-# However, it may be needed to prevent breakage if they update to cli v2 in the future.
 export AWS_PAGER=""
 
 # Set Instance Identity URI

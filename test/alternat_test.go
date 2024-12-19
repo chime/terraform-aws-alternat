@@ -137,18 +137,22 @@ func TestAlternat(t *testing.T) {
 		retry.DoWithRetry(t, fmt.Sprintf("Check SSH connection to %s", ip), maxRetries, waitTime, func() (string, error) {
 			return "", ssh.CheckSshConnectionE(t, natInstance)
 		})
-		command := "/usr/sbin/sysctl net.ipv4.ip_forward net.ipv4.conf.eth0.send_redirects net.ipv4.ip_local_port_range"
 
-		expectedText := `net.ipv4.ip_forward = 1
-net.ipv4.conf.eth0.send_redirects = 0
-net.ipv4.ip_local_port_range = 1024	65535
+		command := "sudo /usr/sbin/nft list ruleset"
+
+		expectedText := `table ip nat {
+	chain postrouting {
+		type nat hook postrouting priority srcnat; policy accept;
+		ip saddr 10.10.0.0/16 oif "ens5" masquerade
+	}
+}
 `
 
-		maxRetries = 1
+		maxRetries = 5
 		waitTime = 10 * time.Second
 		retry.DoWithRetry(t, fmt.Sprintf("SSH to NAT instance at IP %s", ip), maxRetries, waitTime, func() (string, error) {
 			actualText, err := ssh.CheckSshCommandE(t, natInstance, command)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			if actualText != expectedText {
 				return "", fmt.Errorf("Expected SSH command to return '%s' but got '%s'", expectedText, actualText)
 			}
@@ -188,7 +192,7 @@ net.ipv4.ip_local_port_range = 1024	65535
 			return "All private route tables route through NAT Gateway", nil
 		})
 		logger := logger.Logger{}
-		logger.Logf(t, output)	
+		logger.Logf(t, output)
 		updateEgress(t, ec2Client, sgId, false)
 	})
 }
