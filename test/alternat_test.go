@@ -151,7 +151,7 @@ func TestAlternat(t *testing.T) {
 		waitTime = 10 * time.Second
 		retry.DoWithRetry(t, fmt.Sprintf("SSH to NAT instance at IP %s", ip), maxRetries, waitTime, func() (string, error) {
 			actualText, err := ssh.CheckSshCommandE(t, natInstance, command)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			if actualText != expectedText {
 				return "", fmt.Errorf("Expected SSH command to return '%s' but got '%s'", expectedText, actualText)
 			}
