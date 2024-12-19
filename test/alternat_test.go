@@ -145,7 +145,8 @@ func TestAlternat(t *testing.T) {
                 type nat hook postrouting priority srcnat; policy accept;
                 ip saddr 10.10.0.0/16 oif "ens5" masquerade
         }
-}`
+}
+`
 
 		maxRetries = 5
 		waitTime = 10 * time.Second
