@@ -9,7 +9,7 @@ module "vpc" {
   version = "~> 4"
 
   name                  = var.vpc_name
-  cidr                  = var.vpc_cidrs
+  cidr                  = var.vpc_cidr
   secondary_cidr_blocks = [var.vpc_secondary_cidr]
   private_subnets       = var.private_subnets
   public_subnets        = var.public_subnets
