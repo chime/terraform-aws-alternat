@@ -144,6 +144,7 @@ func TestAlternat(t *testing.T) {
 	chain postrouting {
 		type nat hook postrouting priority srcnat; policy accept;
 		ip saddr 10.10.0.0/16 oif "ens5" masquerade
+		ip saddr 10.20.0.0/16 oif "ens5" masquerade
 	}
 }
 `
