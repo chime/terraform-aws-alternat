@@ -367,11 +367,11 @@ def get_current_nat_instance_id(asg_name):
 
 def connectivity_test_handler(event, context):
     if not isinstance(event, dict):
-        slogger.error("Unknown event", eventPayload=event)
+        slogger.error("Unknown event: %s", {event})
         return
 
     if event.get("source") != "aws.events":
-        slogger.error("Unable to handle unknown event type", eventPayload=json.dumps(event))
+        slogger.error("Unable to handle unknown event type: %s", json.dumps(event))
         raise UnknownEventTypeError
 
     slogger.debug("Starting NAT instance connectivity test")
