@@ -4,16 +4,33 @@ import logging
 import time
 import urllib
 import socket
+import structlog
+import orjson
 
 import botocore
 import boto3
 
+slogger = structlog.get_logger()
+# use structlog's production-ready, performant example config
+# ref: https://www.structlog.org/en/stable/performance.html#example
+structlog.configure(
+    cache_logger_on_first_use=True,
+    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.format_exc_info,
+        structlog.processors.TimeStamper(fmt="iso", utc=True),
+        structlog.processors.EventRenamer("message"),
+        structlog.processors.JSONRenderer(serializer=orjson.dumps)
+    ],
+    logger_factory=structlog.BytesLoggerFactory()
+)
 
+# logger is still needed to set the level for dependencies
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 logging.getLogger('boto3').setLevel(logging.CRITICAL)
 logging.getLogger('botocore').setLevel(logging.CRITICAL)
-
 
 ec2_client = boto3.client("ec2")
 
@@ -51,18 +68,18 @@ def get_az_and_vpc_zone_identifier(auto_scaling_group):
     try:
         asg_objects = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[auto_scaling_group])
     except botocore.exceptions.ClientError as error:
-        logger.error("Unable to describe autoscaling groups")
+        slogger.error("Unable to describe autoscaling groups")
         raise error
 
     if asg_objects["AutoScalingGroups"] and len(asg_objects["AutoScalingGroups"]) > 0:
         asg = asg_objects["AutoScalingGroups"][0]
-        logger.debug("Auto Scaling Group: %s", asg)
+        slogger.debug("Auto Scaling Group: %s", asg)
 
         availability_zone = asg["AvailabilityZones"][0]
-        logger.debug("Availability Zone: %s", availability_zone)
+        slogger.debug("Availability Zone: %s", availability_zone)
 
         vpc_zone_identifier = asg["VPCZoneIdentifier"]
-        logger.debug("VPC zone identifier: %s", vpc_zone_identifier)
+        slogger.debug("VPC zone identifier: %s", vpc_zone_identifier)
 
         return availability_zone, vpc_zone_identifier
 
@@ -73,18 +90,18 @@ def get_vpc_id(route_table):
     try:
         route_tables = ec2_client.describe_route_tables(RouteTableIds=[route_table])
     except botocore.exceptions.ClientError as error:
-        logger.error("Unable to get vpc id")
+        slogger.error("Unable to get vpc id")
         raise error
     if "RouteTables" in route_tables and len(route_tables["RouteTables"]) == 1:
         vpc_id = route_tables["RouteTables"][0]["VpcId"]
-        logger.debug("VPC ID: %s", vpc_id)
+        slogger.debug("VPC ID: %s", vpc_id)
     return vpc_id
 
 
 def get_nat_gateway_id(vpc_id, subnet_id):
     nat_gateway_id = os.getenv("NAT_GATEWAY_ID")
     if nat_gateway_id:
-        logger.info("Using NAT_GATEWAY_ID env. variable (%s)", nat_gateway_id)
+        slogger.info("Using NAT_GATEWAY_ID env. variable (%s)", nat_gateway_id)
         return nat_gateway_id
 
     try:
@@ -101,15 +118,15 @@ def get_nat_gateway_id(vpc_id, subnet_id):
             ]
         )
     except botocore.exceptions.ClientError as error:
-        logger.error("Unable to describe nat gateway")
+        slogger.error("Unable to describe nat gateway")
         raise error
 
-    logger.debug("NAT Gateways: %s", nat_gateways)
+    slogger.debug("NAT Gateways: %s", nat_gateways)
     if len(nat_gateways.get("NatGateways")) < 1:
         raise MissingNatGatewayError(nat_gateways)
 
     nat_gateway_id = nat_gateways['NatGateways'][0]["NatGatewayId"]
-    logger.debug("NAT Gateway ID: %s", nat_gateway_id)
+    slogger.debug("NAT Gateway ID: %s", nat_gateway_id)
     return nat_gateway_id
 
 
@@ -120,10 +137,10 @@ def replace_route(route_table_id, nat_gateway_id):
         "RouteTableId": route_table_id
     }
     try:
-        logger.info("Replacing existing route %s for route table %s", route_table_id, new_route_table)
+        slogger.info("Replacing existing route %s for route table %s", route_table_id, new_route_table)
         ec2_client.replace_route(**new_route_table)
     except botocore.exceptions.ClientError as error:
-        logger.error("Unable to replace route")
+        slogger.error("Unable to replace route")
         raise error
 
 
@@ -138,17 +155,17 @@ def check_connection(check_urls):
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'alternat/1.0')
             urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT)
-            logger.debug("Successfully connected to %s", url)
+            slogger.debug("Successfully connected to %s", url)
             return True
         except urllib.error.HTTPError as error:
-            logger.warning("Response error from %s: %s, treating as success", url, error)
+            slogger.warning("Response error from %s: %s, treating as success", url, error)
             return True
         except urllib.error.URLError as error:
-            logger.error("error connecting to %s: %s", url, error)
+            slogger.error("error connecting to %s: %s", url, error)
         except socket.timeout as error:
-            logger.error("timeout error connecting to %s: %s", url, error)
+            slogger.error("timeout error connecting to %s: %s", url, error)
 
-    logger.warning("Failed connectivity tests! Replacing route")
+    slogger.warning("Failed connectivity tests! Replacing route")
 
     public_subnet_id = os.getenv("PUBLIC_SUBNET_ID")
     if not public_subnet_id:
@@ -163,20 +180,20 @@ def check_connection(check_urls):
 
     for rtb in route_tables:
         replace_route(rtb, nat_gateway_id)
-        logger.info("Route replacement succeeded")
+        slogger.info("Route replacement succeeded")
     return False
 
 
 def connectivity_test_handler(event, context):
     if not isinstance(event, dict):
-        logger.error(f"Unknown event: {event}")
+        slogger.error("Unknown event", eventPayload=event)
         return
 
     if event.get("source") != "aws.events":
-        logger.error(f"Unable to handle unknown event type: {json.dumps(event)}")
+        slogger.error("Unable to handle unknown event type", eventPayload=json.dumps(event))
         raise UnknownEventTypeError
 
-    logger.debug("Starting NAT instance connectivity test")
+    slogger.debug("Starting NAT instance connectivity test")
 
     check_interval = int(os.getenv("CONNECTIVITY_CHECK_INTERVAL", DEFAULT_CONNECTIVITY_CHECK_INTERVAL))
     check_urls = "CHECK_URLS" in os.environ and os.getenv("CHECK_URLS").split(",") or DEFAULT_CHECK_URLS
@@ -209,10 +226,10 @@ def handler(event, _):
             if LIFECYCLE_KEY in message and ASG_KEY in message:
                 asg = message[ASG_KEY]
             else:
-                logger.error("Failed to find lifecycle message to parse")
+                slogger.error("Failed to find lifecycle message to parse")
                 raise LifecycleMessageError
     except Exception as error:
-        logger.error("Error: %s", error)
+        slogger.error(error)
         raise error
 
     availability_zone, vpc_zone_identifier = get_az_and_vpc_zone_identifier(asg)
@@ -227,7 +244,7 @@ def handler(event, _):
 
     for rtb in route_tables:
         replace_route(rtb, nat_gateway_id)
-        logger.info("Route replacement succeeded")
+        slogger.info("Route replacement succeeded")
 
 
 class UnknownEventTypeError(Exception): pass
