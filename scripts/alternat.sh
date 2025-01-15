@@ -47,14 +47,12 @@ configure_nat() {
    local vpc_cidr_uri="http://169.254.169.254/latest/meta-data/network/interfaces/macs/${nic_mac}/vpc-ipv4-cidr-blocks"
    echo "Metadata location for vpc ipv4 ranges: $vpc_cidr_uri"
 
-   local vpc_cidr_ranges=$(CURL_WITH_TOKEN "$vpc_cidr_uri")
-   if [ $? -ne 0 ]; then
+   readarray -t vpc_cidrs <<< $(CURL_WITH_TOKEN "$vpc_cidr_uri")
+   if [ ${#vpc_cidrs[*]} -lt 1 ]; then
       panic "Unable to obtain VPC CIDR range from metadata."
    else
-      echo "Retrieved VPC CIDR range(s) $vpc_cidr_ranges from metadata."
+      echo "Retrieved VPC CIDR range(s) ${vpc_cidrs[@]} from metadata."
    fi
-
-   IFS=' ' read -r -a vpc_cidrs <<< $(echo "$vpc_cidr_ranges")
 
    echo "Enabling NAT..."
    # Read more about these settings here: https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt
@@ -68,6 +66,9 @@ configure_nat() {
    for cidr in "${vpc_cidrs[@]}";
    do
       nft add rule ip nat postrouting ip saddr "$cidr" oif "$nic_name" masquerade
+      if [ $? -ne 0 ]; then
+         panic "Unable to add nft rule for cidr $cidr. nft exited with status $?"
+      fi
    done
 
    sysctl "net.ipv4.ip_forward" "net.ipv4.conf.${nic_name}.send_redirects" "net.ipv4.ip_local_port_range"

@@ -46,6 +46,18 @@ variable "vpc_cidr" {
   default     = "10.10.0.0/16"
 }
 
+variable "vpc_secondary_subnets" {
+  description = "List of private subnets in the secondary cidr space."
+  type        = list(string)
+  default     = ["10.20.20.0/24", "10.20.21.0/24"]
+}
+
+variable "vpc_secondary_cidr" {
+  description = "A secondary CIDR block to use with the example VPC."
+  type        = string
+  default     = "10.20.0.0/16"
+}
+
 variable "vpc_name" {
   description = "The name to use for the example VPC."
   type        = string

@@ -8,12 +8,26 @@ module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 4"
 
-  name               = var.vpc_name
-  cidr               = var.vpc_cidr
-  private_subnets    = var.private_subnets
-  public_subnets     = var.public_subnets
-  azs                = local.azs
-  enable_nat_gateway = var.enable_nat_gateway
+  name                  = var.vpc_name
+  cidr                  = var.vpc_cidr
+  secondary_cidr_blocks = [var.vpc_secondary_cidr]
+  private_subnets       = var.private_subnets
+  public_subnets        = var.public_subnets
+  azs                   = local.azs
+  enable_nat_gateway    = var.enable_nat_gateway
+}
+
+resource "aws_subnet" "secondary_subnets" {
+  count             = length(var.vpc_secondary_subnets)
+  vpc_id            = module.vpc.vpc_id
+  cidr_block        = var.vpc_secondary_subnets[count.index]
+  availability_zone = local.azs[count.index]
+}
+
+resource "aws_route_table_association" "secondary_subnets" {
+  count          = length(var.vpc_secondary_subnets)
+  subnet_id      = aws_subnet.secondary_subnets[count.index].id
+  route_table_id = module.vpc.private_route_table_ids[count.index]
 }
 
 data "aws_subnet" "subnet" {
@@ -25,9 +39,12 @@ locals {
   vpc_az_maps = [
     for index, rt in module.vpc.private_route_table_ids
     : {
-      az                 = data.aws_subnet.subnet[index].availability_zone
-      route_table_ids    = [rt]
-      public_subnet_id   = module.vpc.public_subnets[index]
+      az               = data.aws_subnet.subnet[index].availability_zone
+      route_table_ids  = [rt]
+      public_subnet_id = module.vpc.public_subnets[index]
+      # The secondary subnets do not need to be included here. this data is
+      # used for the connectivity test function and VPC endpoint which are
+      # only needed in one subnet per zone.
       private_subnet_ids = [module.vpc.private_subnets[index]]
     }
   ]
