@@ -91,6 +91,12 @@ variable "lifecycle_heartbeat_timeout" {
   default     = 180
 }
 
+variable "log_successful_connections" {
+  description = "Logs successful connection events during connection checks. This will increase the number of logs produced by the Lambda function in proportion to the number of checks each time the Lambda runs."
+  type        = bool
+  default     = false
+}
+
 variable "max_instance_lifetime" {
   description = "Max instance life in seconds. Defaults to 14 days. Set to 0 to disable."
   type        = number

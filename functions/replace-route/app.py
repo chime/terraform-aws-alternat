@@ -50,6 +50,8 @@ REQUEST_TIMEOUT = 5
 # Whether or not use IPv6.
 DEFAULT_HAS_IPV6 = True
 
+# Whether or not to log successful connections.
+DEFAULT_LOG_SUCCESSFUL_CONNECTIONS = False
 
 # Overrides socket.getaddrinfo to perform IPv4 lookups
 # See https://github.com/chime/terraform-aws-alternat/issues/87
@@ -150,12 +152,17 @@ def check_connection(check_urls):
     If all fail, replaces the route table to point at a standby NAT Gateway and
     return failure.
     """
+    log_successful_connections = get_env_bool("LOG_SUCCESSFUL_CONNECTIONS", DEFAULT_LOG_SUCCESSFUL_CONNECTIONS)
+
     for url in check_urls:
         try:
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'alternat/1.0')
             urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT)
-            slogger.debug("Successfully connected to %s", url)
+            if log_successful_connections:
+                slogger.info("Successfully connected to %s", url)
+            else:
+                slogger.debug("Successfully connected to %s", url)
             return True
         except urllib.error.HTTPError as error:
             slogger.warning("Response error from %s: %s, treating as success", url, error)

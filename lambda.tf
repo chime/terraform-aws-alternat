@@ -5,6 +5,7 @@ locals {
     : replace(upper(obj.az), "-", "_") => join(",", obj.route_table_ids)
   }
   has_ipv6_env_var = { "HAS_IPV6" = var.lambda_has_ipv6 }
+  log_successful_connections_env_var = { "LOG_SUCCESSFUL_CONNECTIONS" = var.log_successful_connections }
   lambda_runtime   = "python3.12"
 }
 
@@ -161,6 +162,7 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
         NAT_GATEWAY_ID      = var.nat_gateway_id,
       },
       local.has_ipv6_env_var,
+      local.log_successful_connections_env_var
       var.lambda_environment_variables,
     )
   }
