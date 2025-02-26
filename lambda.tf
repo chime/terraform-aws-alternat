@@ -8,7 +8,7 @@ locals {
   lambda_runtime   = "python3.12"
 }
 
-data "archive_file" "lambda" {
+resource "archive_file" "lambda" {
   count       = var.lambda_package_type == "Zip" ? 1 : 0
   type        = "zip"
   source_dir  = "${path.module}/functions/replace-route"
@@ -31,8 +31,8 @@ resource "aws_lambda_function" "alternat_autoscaling_hook" {
 
   runtime          = var.lambda_package_type == "Zip" ? local.lambda_runtime : null
   handler          = var.lambda_package_type == "Zip" ? var.lambda_handlers.alternat_autoscaling_hook : null
-  filename         = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_path : null
-  source_code_hash = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_base64sha256 : null
+  filename         = var.lambda_package_type == "Zip" ? archive_file.lambda[0].output_path : null
+  source_code_hash = var.lambda_package_type == "Zip" ? archive_file.lambda[0].output_base64sha256 : null
 
   environment {
     variables = merge(
@@ -141,8 +141,8 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
 
   runtime          = var.lambda_package_type == "Zip" ? local.lambda_runtime : null
   handler          = var.lambda_package_type == "Zip" ? var.lambda_handlers.connectivity_tester : null
-  filename         = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_path : null
-  source_code_hash = var.lambda_package_type == "Zip" ? data.archive_file.lambda[0].output_base64sha256 : null
+  filename         = var.lambda_package_type == "Zip" ? archive_file.lambda[0].output_path : null
+  source_code_hash = var.lambda_package_type == "Zip" ? archive_file.lambda[0].output_base64sha256 : null
 
   dynamic "image_config" {
     for_each = var.lambda_package_type == "Image" ? [var.lambda_handlers.connectivity_tester] : []
