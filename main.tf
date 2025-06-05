@@ -38,8 +38,22 @@ locals {
   nat_instance_eip_ids    = local.reuse_nat_instance_eips ? var.nat_instance_eip_ids : aws_eip.nat_instance_eips[*].id
 }
 
+
+
+resource "aws_eip" "protected_nat_instance_eips" {
+  count = local.reuse_nat_instance_eips ? 0 : var.prevent_destroy_eips ? length(var.vpc_az_maps) : 0
+
+  tags = merge(var.tags, {
+    "Name" = "alternat-instance-${count.index}"
+  })
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 resource "aws_eip" "nat_instance_eips" {
-  count = local.reuse_nat_instance_eips ? 0 : length(var.vpc_az_maps)
+  count = local.reuse_nat_instance_eips ? 0 : var.prevent_destroy_eips ? 0 : length(var.vpc_az_maps)
 
   tags = merge(var.tags, {
     "Name" = "alternat-instance-${count.index}"
@@ -408,11 +422,25 @@ resource "aws_iam_role_policy" "alternat_additional_policies" {
 }
 
 ## NAT Gateway used as a backup route
+resource "aws_eip" "protected_nat_gateway_eips" {
+  for_each = {
+    for obj in var.vpc_az_maps
+    : obj.az => obj.public_subnet_id
+    if var.create_nat_gateways && var.prevent_destroy_eips
+  }
+  tags = merge(var.tags, {
+    "Name" = "alternat-gateway-eip"
+  })
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 resource "aws_eip" "nat_gateway_eips" {
   for_each = {
     for obj in var.vpc_az_maps
     : obj.az => obj.public_subnet_id
-    if var.create_nat_gateways
+    if var.create_nat_gateways && !var.prevent_destroy_eips
   }
   tags = merge(var.tags, {
     "Name" = "alternat-gateway-eip"
@@ -425,7 +453,7 @@ resource "aws_nat_gateway" "main" {
     : obj.az => obj.public_subnet_id
     if var.create_nat_gateways
   }
-  allocation_id = aws_eip.nat_gateway_eips[each.key].id
+  allocation_id = var.prevent_destroy_eips ? aws_eip.protected_nat_gateway_eips[each.key].id : aws_eip.nat_gateway_eips[each.key].id
   subnet_id     = each.value
   tags = merge(var.tags, {
     Name = "alternat-${each.key}"
