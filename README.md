@@ -246,6 +246,9 @@ AlterNATively, you can remove the NAT Gateways and their EIPs from your existing
     nat_gateway_id      = "nat-..."
   ```
 
+- As Public EIP could be critical as they may be used in allow lists, you could protect them from accidental deletion with boolean switch `prevent_destroy_eips` set to `true`.
+
+
 ## Contributing
 
 [Issues](https://github.com/chime/terraform-aws-alternat/issues) and [pull requests](https://github.com/chime/terraform-aws-alternat/pulls) are most welcome!
