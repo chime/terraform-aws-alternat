@@ -246,7 +246,7 @@ AlterNATively, you can remove the NAT Gateways and their EIPs from your existing
     nat_gateway_id      = "nat-..."
   ```
 
-- As Public EIP could be critical as they may be used in allow lists, you could protect them from accidental deletion with boolean switch `prevent_destroy_eips` set to `true`.
+- If your EIPs are critical, for example if they have been allow listed by third parties, use `prevent_destroy_eips=true` to prevent accidental deletion.
 
 
 ## Contributing
