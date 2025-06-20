@@ -41,7 +41,9 @@ locals {
 
 
 resource "aws_eip" "protected_nat_instance_eips" {
-  count = local.reuse_nat_instance_eips ? 0 : var.prevent_destroy_eips ? length(var.vpc_az_maps) : 0
+  count = (local.reuse_nat_instance_eips
+    ? 0
+  : var.prevent_destroy_eips ? length(var.vpc_az_maps) : 0)
 
   tags = merge(var.tags, {
     "Name" = "alternat-instance-${count.index}"
@@ -53,7 +55,9 @@ resource "aws_eip" "protected_nat_instance_eips" {
 }
 
 resource "aws_eip" "nat_instance_eips" {
-  count = local.reuse_nat_instance_eips ? 0 : var.prevent_destroy_eips ? 0 : length(var.vpc_az_maps)
+  count = (local.reuse_nat_instance_eips
+    ? 0
+  : (var.prevent_destroy_eips ? 0 : length(var.vpc_az_maps)))
 
   tags = merge(var.tags, {
     "Name" = "alternat-instance-${count.index}"
