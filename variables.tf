@@ -180,7 +180,7 @@ variable "nat_instance_user_data_post_install" {
 }
 
 variable "prevent_destroy_eips" {
-  description = "Prevents accidental destruction of NAT Gateway EIPs by setting `prevent_destroy=true`"
+  description = "Prevents accidental destruction of EIPs by setting `prevent_destroy=true`"
   type        = bool
   default     = false
 }
