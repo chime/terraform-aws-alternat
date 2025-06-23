@@ -179,6 +179,12 @@ variable "nat_instance_user_data_post_install" {
   default     = ""
 }
 
+variable "prevent_destroy_eips" {
+  description = "Prevents accidental destruction of EIPs by setting `prevent_destroy=true`"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "A map of tags to add to all supported resources managed by the module."
   type        = map(string)
