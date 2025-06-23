@@ -88,7 +88,7 @@ data "aws_iam_policy_document" "alternat_lambda_permissions" {
     ]
     resources = [
       for route_table in local.all_route_tables
-      : "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.id}:route-table/${route_table}"
+      : "arn:aws:ec2:${data.aws_region.current.region}:${data.aws_caller_identity.current.id}:route-table/${route_table}"
     ]
   }
 }
