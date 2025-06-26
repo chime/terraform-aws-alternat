@@ -1,8 +1,5 @@
 ## NAT instance configuration
 locals {
-  # Use region if available (AWS provider v6.x), otherwise fall back to name (AWS provider v5.x)
-  aws_region_value = try(data.aws_region.current.region, data.aws_region.current.name)
-
   initial_lifecycle_hooks = [
     {
       name                    = "NATInstanceTerminationLifeCycleHook"
@@ -399,7 +396,7 @@ data "aws_iam_policy_document" "alternat_ec2_policy" {
     ]
     resources = [
       for route_table in local.all_route_tables
-      : "arn:aws:ec2:${local.aws_region_value}:${data.aws_caller_identity.current.id}:route-table/${route_table}"
+      : "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.id}:route-table/${route_table}"
     ]
   }
 
