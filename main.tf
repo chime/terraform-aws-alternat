@@ -259,12 +259,15 @@ resource "aws_launch_template" "nat_instance_template" {
   }
 
   tags = var.tags
-
+  lifecycle {
+    create_before_destroy = true
+  }
   tag_specifications {
     resource_type = "instance"
 
     tags = merge(var.tags, {
       alterNATInstance = "true",
+      TemplateVersionHash = filesha256("${path.module}/scripts/alternat.sh")
     })
   }
 
