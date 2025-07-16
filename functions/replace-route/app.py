@@ -7,6 +7,7 @@ import socket
 
 import botocore
 import boto3
+import uuid
 
 
 logger = logging.getLogger()
@@ -126,6 +127,54 @@ def replace_route(route_table_id, nat_gateway_id):
         logger.error("Unable to replace route")
         raise error
 
+def attempt_nat_instance_restore():
+
+    ssm_client = boto3.client('ssm')
+    nat_instance_id = os.getenv("NAT_INSTANCE_ID")
+    route_tables = os.getenv("ROUTE_TABLE_IDS_CSV", "").split(",")
+
+    if not nat_instance_id or not route_tables:
+        logger.warning("NAT_INSTANCE_ID or ROUTE_TABLE_IDS_CSV not set. Skipping NAT restore.")
+        return
+
+    logger.info("Attempting to restore route to NAT Instance: %s", nat_instance_id)
+
+    try:
+        # Send SSM command to test connectivity
+        response = ssm_client.send_command(
+            InstanceIds=[nat_instance_id],
+            DocumentName="AWS-RunShellScript",
+            Parameters={
+                "commands": ["curl -s --head --max-time 5 https://www.google.com | grep '200 OK'", "curl -s --head --max-time 5 https://www.example.com | grep '200 OK'"]
+            },
+            Comment="Check Internet access from NAT instance via Lambda",
+        )
+        command_id = response['Command']['CommandId']
+        time.sleep(3)  # Wait briefly before checking command result
+
+        # Poll command result
+        invocation = ssm_client.get_command_invocation(
+            CommandId=command_id,
+            InstanceId=nat_instance_id,
+        )
+
+        if invocation['Status'] == "Success" and "200 OK" in invocation['StandardOutputContent']:
+            logger.info("NAT instance has Internet access. Replacing default route.")
+            for rtb in route_tables:
+                ec2_client.replace_route(
+                    RouteTableId=rtb,
+                    DestinationCidrBlock="0.0.0.0/0",
+                    InstanceId=nat_instance_id,
+                )
+                logger.info("Route table %s now points to NAT instance %s", rtb, nat_instance_id)
+        else:
+            logger.warning("NAT instance connectivity test failed or did not return expected result.")
+            logger.debug("Invocation output: %s", invocation['StandardOutputContent'])
+
+    except botocore.exceptions.ClientError as e:
+        logger.error("SSM command failed: %s", str(e))
+    except Exception as ex:
+        logger.error("Unexpected error during NAT restore: %s", str(ex))
 
 def check_connection(check_urls):
     """
@@ -194,7 +243,7 @@ def connectivity_test_handler(event, context):
             run += 1
         else:
             break
-
+    attempt_nat_instance_restore()
 
 def get_env_bool(var_name, default_value=False):
     value = os.getenv(var_name, default_value)
