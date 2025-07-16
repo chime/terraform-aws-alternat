@@ -36,8 +36,7 @@ validate_var() {
 # See https://docs.aws.amazon.com/vpc/latest/userguide/VPC_NAT_Instance.html#NATInstance
 configure_nat() {
    dnf -y install nftables
-   systemctl start nftables
-   systemctl enable nftables
+   systemctl enable --now nftables
 
    local nic_name="$(ip route show | grep default | sed -n 's/.*dev \([^\ ]*\).*/\1/p')"
    echo "Found interface name ${nic_name}"
