@@ -27,3 +27,7 @@ output "autoscaling_group_names" {
     : asg.name
   ]
 }
+
+output "nat_instance_eips_ids" {
+value = local.nat_instance_eip_ids
+}
