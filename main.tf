@@ -36,7 +36,6 @@ locals {
   # var.nat_instance_eip_ids ignored if doesn't match AZ count
   reuse_nat_instance_eips = length(var.nat_instance_eip_ids) == length(var.vpc_az_maps)
   nat_instance_eip_ids    = local.reuse_nat_instance_eips ? var.nat_instance_eip_ids : var.prevent_destroy_eips ? aws_eip.protected_nat_instance_eips[*].id : aws_eip.nat_instance_eips[*].id
-  eip_allocation_ids_csv  = join(",", local.nat_instance_eip_ids)
   nat_instance_eips       = var.prevent_destroy_eips ? aws_eip.protected_nat_instance_eips : aws_eip.nat_instance_eips
   nat_gateway_eips        = var.prevent_destroy_eips ? aws_eip.protected_nat_gateway_eips : aws_eip.nat_gateway_eips
 }
@@ -192,7 +191,7 @@ data "cloudinit_config" "config" {
   part {
     content_type = "text/x-shellscript"
     content = templatefile("${path.module}/alternat.conf.tftpl", {
-      eip_allocation_ids_csv = local.eip_allocation_ids_csv,
+      eip_allocation_ids_csv = join(",", local.nat_instance_eip_ids),
       route_table_ids_csv    = join(",", each.value)
     })
   }
@@ -260,16 +259,11 @@ resource "aws_launch_template" "nat_instance_template" {
   }
 
   tags = var.tags
-  lifecycle {
-    create_before_destroy = true
-  }
   tag_specifications {
     resource_type = "instance"
 
     tags = merge(var.tags, {
       alterNATInstance = "true",
-      ScriptHash       = filesha256("${path.module}/scripts/alternat.sh"),
-      UserDataHash     = sha256(data.cloudinit_config.config[each.key].rendered)
     })
   }
 
