@@ -215,3 +215,32 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_call_connectivity_tester" 
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.every_minute.arn
 }
+
+resource "aws_iam_policy" "lambda_ssm_send_command" {
+  name = "AllowLambdaToSendSSMCommand"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        "Sid" : "AllowSSMSendCommandOnDocument",
+        "Effect" : "Allow",
+        "Action" : "ssm:SendCommand",
+        "Resource" : "arn:aws:ssm:eu-west-1::document/AWS-RunShellScript"
+      },
+      {
+        "Sid" : "AllowSSMCommandOnInstances",
+        "Effect" : "Allow",
+        "Action" : [
+          "ssm:SendCommand",
+          "ssm:GetCommandInvocation"
+        ],
+        "Resource" : "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_lambda_ssm_policy" {
+  role       = aws_iam_role.nat_lambda_role.name
+  policy_arn = aws_iam_policy.lambda_ssm_send_command.arn
+}

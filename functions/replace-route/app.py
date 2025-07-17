@@ -7,7 +7,6 @@ import socket
 
 import botocore
 import boto3
-import uuid
 
 
 logger = logging.getLogger()
@@ -114,13 +113,8 @@ def get_nat_gateway_id(vpc_id, subnet_id):
     return nat_gateway_id
 
 
-def replace_route(route_table_id, target_id, isinstance=False):
-    expected_value = "nat-instance" if isinstance else "nat-gateway"
-    current_value  = get_route_table_internet_tag(route_table_id)
-    if expected_value == current_value:
-        logger.info(f"Route table {route_table_id} already tagged with {expected_value}, skipping replacement.")
-        return 
-    if isinstance:
+def replace_route(route_table_id, target_id, use_instance=False):
+    if use_instance:
         new_route_table = {
             "DestinationCidrBlock": "0.0.0.0/0",
             "InstanceId": target_id,
@@ -139,6 +133,58 @@ def replace_route(route_table_id, target_id, isinstance=False):
         logger.error("Unable to replace route")
         raise error
 
+def run_nat_instance_diagnostics(instance_id):
+    """
+    Runs a basic diagnostic script via SSM on the NAT instance.
+    It checks if IP forwarding is enabled and lists the nftables NAT configuration.
+    Returns True if configuration is healthy, False otherwise.
+    """
+    ssm_client = boto3.client("ssm")
+
+    diagnostic_script = [
+        "#!/bin/bash",
+        "set -e",
+        "echo 'ip_forward='$(cat /proc/sys/net/ipv4/ip_forward)",
+        "echo 'nft_nat_table='$(nft list table ip nat 2>/dev/null || echo 'nftables nat table not found')"
+    ]
+
+    try:
+        response = ssm_client.send_command(
+            InstanceIds=[instance_id],
+            DocumentName="AWS-RunShellScript",
+            Parameters={"commands": diagnostic_script},
+            Comment="Run NAT instance diagnostics",
+        )
+        command_id = response['Command']['CommandId']
+        time.sleep(5)  # Allow some time for the command to execute
+
+        invocation = ssm_client.get_command_invocation(
+            CommandId=command_id,
+            InstanceId=instance_id,
+        )
+
+        output = invocation.get('StandardOutputContent', '')
+
+        if invocation.get('StandardErrorContent'):
+            logger.warning("NAT instance diagnostic errors:\n%s", invocation['StandardErrorContent'])
+
+        # Check conditions
+        if "ip_forward=0" in output:
+            logger.warning("NAT instance has ip_forward=0 — IP forwarding is disabled.")
+            return False
+
+        if "masquerade" not in output:
+            logger.warning("NAT instance nftables missing 'masquerade' rule — SNAT may be broken.")
+            return False
+
+        return True
+
+    except botocore.exceptions.ClientError as e:
+        logger.error("SSM diagnostic command failed: %s", str(e))
+        return False
+
+
+
 def attempt_nat_instance_restore():
 
     ssm_client = boto3.client('ssm')
@@ -155,7 +201,7 @@ def attempt_nat_instance_restore():
         check_urls = os.getenv("CHECK_URLS", ",".join(DEFAULT_CHECK_URLS)).split(",")
         commands = []
         for url in check_urls:
-            command = f"curl -sI --max-time 5 {url.strip()} | grep '200 OK'"
+            command = f"curl -s -o /dev/null -w '%{{http_code}}\\n' --max-time 5 {url.strip()}"
             commands.append(command)
         # Send SSM command to test connectivity
         response = ssm_client.send_command(
@@ -174,18 +220,23 @@ def attempt_nat_instance_restore():
             CommandId=command_id,
             InstanceId=nat_instance_id,
         )
-
-        if invocation['Status'] == "Success" and "200 OK" in invocation['StandardOutputContent']:
-            logger.info("NAT instance has Internet access. Replacing default route.")
-            for rtb in route_tables:
-                current_value  = get_route_table_internet_tag(rtb)
-                if current_value == "nat-gateway":
-                    replace_route(rtb,nat_instance_id)
-                    tag_route_table(rtb, "nat-instance")
+        if invocation['Status'] == "Success":
+            output = invocation['StandardOutputContent'].strip()
+            http_codes = output.splitlines()
+            if all(code == "200" for code in http_codes):
+                logger.info("NAT instance has Internet access, we can diagnose the NAT configuration.")
+                if not run_nat_instance_diagnostics(nat_instance_id):
+                    logger.warning("Skipping route restore due to failed NAT diagnostics.")
+                    return
+                for rtb in route_tables:
+                    replace_route(rtb, nat_instance_id, use_instance=True)
                     logger.info("Route table %s now points to NAT instance %s", rtb, nat_instance_id)
+                return
+            else:
+                logger.warning("Invocation output: %s", invocation['StandardOutputContent'])
         else:
             logger.warning("NAT instance connectivity test failed or did not return expected result.")
-            logger.debug("Invocation output: %s", invocation['StandardOutputContent'])
+            
 
     except botocore.exceptions.ClientError as e:
         logger.error("SSM command failed: %s", str(e))
@@ -198,22 +249,25 @@ def check_connection(check_urls):
     If all fail, replaces the route table to point at a standby NAT Gateway and
     return failure.
     """
+    success = False
     for url in check_urls:
         try:
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'alternat/1.0')
             urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT)
             logger.debug("Successfully connected to %s", url)
-            attempt_nat_instance_restore()
-            return True
+            success = True
         except urllib.error.HTTPError as error:
             logger.warning("Response error from %s: %s, treating as success", url, error)
-            return True
+            success = True
         except urllib.error.URLError as error:
             logger.error("error connecting to %s: %s", url, error)
         except socket.timeout as error:
             logger.error("timeout error connecting to %s: %s", url, error)
 
+    if success:
+        attempt_nat_instance_restore()  # Try to restore NAT instance if we're currently using the gateway
+        return True
     logger.warning("Failed connectivity tests! Replacing route")
 
     public_subnet_id = os.getenv("PUBLIC_SUBNET_ID")
@@ -228,33 +282,9 @@ def check_connection(check_urls):
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
 
     for rtb in route_tables:
-        current_value  = get_route_table_internet_tag(rtb)
-        if current_value == "nat-instance":
-            replace_route(rtb, nat_gateway_id)
-            tag_route_table(rtb, "nat-gateway")
-            logger.info("Route replacement succeeded")
+        replace_route(rtb, nat_gateway_id, use_instance=False)
+        logger.info("Route replacement succeeded")
     return False
-
-def get_route_table_internet_tag(route_table_id):
-    try:
-        response = ec2_client.describe_route_tables(RouteTableIds=[route_table_id])
-        tags = response['RouteTables'][0].get('Tags', [])
-        for tag in tags:
-            if tag['Key'] == 'InternetTraffic':
-                return tag['Value']
-    except Exception as e:
-        logger.warning(f"Unable to read tags for route table {route_table_id}: {e}")
-    return None
-
-def tag_route_table(route_table_id, value):
-    try:
-        ec2_client.create_tags(
-            Resources=[route_table_id],
-            Tags=[{'Key': 'InternetTraffic', 'Value': value}]
-        )
-        logger.info(f"Tagged route table {route_table_id} with InternetTraffic={value}")
-    except Exception as e:
-        logger.error(f"Failed to tag route table {route_table_id}: {e}")
 
 def get_current_nat_instance_id(asg_name):
     autoscaling = boto3.client("autoscaling")
@@ -327,11 +357,8 @@ def handler(event, _):
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
 
     for rtb in route_tables:
-        current_value  = get_route_table_internet_tag(rtb)
-        if current_value == "nat-instance":
-            replace_route(rtb, nat_gateway_id)
-            tag_route_table(rtb, "nat-gateway")
-            logger.info("Route replacement succeeded")
+        replace_route(rtb, nat_gateway_id, use_instance=False)
+        logger.info("Route replacement succeeded")
 
 
 class UnknownEventTypeError(Exception): pass
