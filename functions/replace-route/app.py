@@ -114,12 +114,24 @@ def get_nat_gateway_id(vpc_id, subnet_id):
     return nat_gateway_id
 
 
-def replace_route(route_table_id, nat_gateway_id):
-    new_route_table = {
-        "DestinationCidrBlock": "0.0.0.0/0",
-        "NatGatewayId": nat_gateway_id,
-        "RouteTableId": route_table_id
-    }
+def replace_route(route_table_id, target_id, isinstance=False):
+    expected_value = "nat-instance" if isinstance else "nat-gateway"
+    current_value  = get_route_table_internet_tag(route_table_id)
+    if expected_value == current_value:
+        logger.info(f"Route table {route_table_id} already tagged with {expected_value}, skipping replacement.")
+        return 
+    if isinstance:
+        new_route_table = {
+            "DestinationCidrBlock": "0.0.0.0/0",
+            "InstanceId": target_id,
+            "RouteTableId": route_table_id
+        }
+    else:
+        new_route_table = {
+            "DestinationCidrBlock": "0.0.0.0/0",
+            "NatGatewayId": target_id,
+            "RouteTableId": route_table_id
+        }
     try:
         logger.info("Replacing existing route %s for route table %s", route_table_id, new_route_table)
         ec2_client.replace_route(**new_route_table)
@@ -130,7 +142,7 @@ def replace_route(route_table_id, nat_gateway_id):
 def attempt_nat_instance_restore():
 
     ssm_client = boto3.client('ssm')
-    nat_instance_id = os.getenv("NAT_INSTANCE_ID")
+    nat_instance_id = get_current_nat_instance_id(os.getenv("NAT_ASG_NAME"))
     route_tables = os.getenv("ROUTE_TABLE_IDS_CSV", "").split(",")
 
     if not nat_instance_id or not route_tables:
@@ -140,17 +152,22 @@ def attempt_nat_instance_restore():
     logger.info("Attempting to restore route to NAT Instance: %s", nat_instance_id)
 
     try:
+        check_urls = os.getenv("CHECK_URLS", ",".join(DEFAULT_CHECK_URLS)).split(",")
+        commands = []
+        for url in check_urls:
+            command = f"curl -sI --max-time 5 {url.strip()} | grep '200 OK'"
+            commands.append(command)
         # Send SSM command to test connectivity
         response = ssm_client.send_command(
             InstanceIds=[nat_instance_id],
             DocumentName="AWS-RunShellScript",
             Parameters={
-                "commands": ["curl -s --head --max-time 5 https://www.google.com | grep '200 OK'", "curl -s --head --max-time 5 https://www.example.com | grep '200 OK'"]
+                "commands": commands
             },
             Comment="Check Internet access from NAT instance via Lambda",
         )
         command_id = response['Command']['CommandId']
-        time.sleep(3)  # Wait briefly before checking command result
+        time.sleep(5)  # Wait briefly before checking command result
 
         # Poll command result
         invocation = ssm_client.get_command_invocation(
@@ -161,12 +178,11 @@ def attempt_nat_instance_restore():
         if invocation['Status'] == "Success" and "200 OK" in invocation['StandardOutputContent']:
             logger.info("NAT instance has Internet access. Replacing default route.")
             for rtb in route_tables:
-                ec2_client.replace_route(
-                    RouteTableId=rtb,
-                    DestinationCidrBlock="0.0.0.0/0",
-                    InstanceId=nat_instance_id,
-                )
-                logger.info("Route table %s now points to NAT instance %s", rtb, nat_instance_id)
+                current_value  = get_route_table_internet_tag(rtb)
+                if current_value == "nat-gateway":
+                    replace_route(rtb,nat_instance_id)
+                    tag_route_table(rtb, "nat-instance")
+                    logger.info("Route table %s now points to NAT instance %s", rtb, nat_instance_id)
         else:
             logger.warning("NAT instance connectivity test failed or did not return expected result.")
             logger.debug("Invocation output: %s", invocation['StandardOutputContent'])
@@ -188,6 +204,7 @@ def check_connection(check_urls):
             req.add_header('User-Agent', 'alternat/1.0')
             urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT)
             logger.debug("Successfully connected to %s", url)
+            attempt_nat_instance_restore()
             return True
         except urllib.error.HTTPError as error:
             logger.warning("Response error from %s: %s, treating as success", url, error)
@@ -211,10 +228,46 @@ def check_connection(check_urls):
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
 
     for rtb in route_tables:
-        replace_route(rtb, nat_gateway_id)
-        logger.info("Route replacement succeeded")
+        current_value  = get_route_table_internet_tag(rtb)
+        if current_value == "nat-instance":
+            replace_route(rtb, nat_gateway_id)
+            tag_route_table(rtb, "nat-gateway")
+            logger.info("Route replacement succeeded")
     return False
 
+def get_route_table_internet_tag(route_table_id):
+    try:
+        response = ec2_client.describe_route_tables(RouteTableIds=[route_table_id])
+        tags = response['RouteTables'][0].get('Tags', [])
+        for tag in tags:
+            if tag['Key'] == 'InternetTraffic':
+                return tag['Value']
+    except Exception as e:
+        logger.warning(f"Unable to read tags for route table {route_table_id}: {e}")
+    return None
+
+def tag_route_table(route_table_id, value):
+    try:
+        ec2_client.create_tags(
+            Resources=[route_table_id],
+            Tags=[{'Key': 'InternetTraffic', 'Value': value}]
+        )
+        logger.info(f"Tagged route table {route_table_id} with InternetTraffic={value}")
+    except Exception as e:
+        logger.error(f"Failed to tag route table {route_table_id}: {e}")
+
+def get_current_nat_instance_id(asg_name):
+    autoscaling = boto3.client("autoscaling")
+
+    try:
+        response = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
+        instances = response['AutoScalingGroups'][0]['Instances']
+        for instance in instances:
+            if instance['LifecycleState'] == 'InService':
+                return instance['InstanceId']
+    except Exception as e:
+        logger.error(f"Failed to retrieve NAT instance ID from ASG {asg_name}: {e}")
+        return None
 
 def connectivity_test_handler(event, context):
     if not isinstance(event, dict):
@@ -243,7 +296,6 @@ def connectivity_test_handler(event, context):
             run += 1
         else:
             break
-    attempt_nat_instance_restore()
 
 def get_env_bool(var_name, default_value=False):
     value = os.getenv(var_name, default_value)
@@ -275,8 +327,11 @@ def handler(event, _):
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
 
     for rtb in route_tables:
-        replace_route(rtb, nat_gateway_id)
-        logger.info("Route replacement succeeded")
+        current_value  = get_route_table_internet_tag(rtb)
+        if current_value == "nat-instance":
+            replace_route(rtb, nat_gateway_id)
+            tag_route_table(rtb, "nat-gateway")
+            logger.info("Route replacement succeeded")
 
 
 class UnknownEventTypeError(Exception): pass

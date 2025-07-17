@@ -158,7 +158,8 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
         ROUTE_TABLE_IDS_CSV = join(",", each.value.route_table_ids),
         PUBLIC_SUBNET_ID    = each.value.public_subnet_id
         CHECK_URLS          = join(",", var.connectivity_test_check_urls)
-        NAT_GATEWAY_ID      = var.nat_gateway_id,
+        NAT_GATEWAY_ID      = var.nat_gateway_id
+        NAT_ASG_NAME        = aws_autoscaling_group.nat_instance.name
       },
       local.has_ipv6_env_var,
       var.lambda_environment_variables,
