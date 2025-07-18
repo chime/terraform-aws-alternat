@@ -35,12 +35,10 @@ locals {
   # Must provide exactly 1 EIP per AZ
   # var.nat_instance_eip_ids ignored if doesn't match AZ count
   reuse_nat_instance_eips = length(var.nat_instance_eip_ids) == length(var.vpc_az_maps)
-  nat_instance_eip_ids    = local.reuse_nat_instance_eips ? var.nat_instance_eip_ids : aws_eip.nat_instance_eips[*].id
+  nat_instance_eip_ids    = local.reuse_nat_instance_eips ? var.nat_instance_eip_ids : (var.prevent_destroy_eips ? aws_eip.protected_nat_instance_eips[*].id : aws_eip.nat_instance_eips[*].id)
   nat_instance_eips       = var.prevent_destroy_eips ? aws_eip.protected_nat_instance_eips : aws_eip.nat_instance_eips
   nat_gateway_eips        = var.prevent_destroy_eips ? aws_eip.protected_nat_gateway_eips : aws_eip.nat_gateway_eips
 }
-
-
 
 resource "aws_eip" "protected_nat_instance_eips" {
   count = (local.reuse_nat_instance_eips
@@ -261,7 +259,6 @@ resource "aws_launch_template" "nat_instance_template" {
   }
 
   tags = var.tags
-
   tag_specifications {
     resource_type = "instance"
 
