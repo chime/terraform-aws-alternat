@@ -225,7 +225,7 @@ resource "aws_iam_policy" "lambda_ssm_send_command" {
         "Sid" : "AllowSSMSendCommandOnDocument",
         "Effect" : "Allow",
         "Action" : "ssm:SendCommand",
-        "Resource" : "arn:aws:ssm:eu-west-1::document/AWS-RunShellScript"
+        "Resource" : "arn:aws:ssm:${data.aws_region.current.name}/AWS-RunShellScript"
       },
       {
         "Sid" : "AllowSSMCommandOnInstances",
