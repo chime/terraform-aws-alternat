@@ -30,6 +30,9 @@ DEFAULT_CHECK_URLS = ["https://www.example.com", "https://www.google.com"]
 # The timeout for the connectivity checks.
 REQUEST_TIMEOUT = 5
 
+# Waiting time for SSM to start commands.
+SSM_TIMEOUT_SECONDS = 5
+
 # Whether or not use IPv6.
 DEFAULT_HAS_IPV6 = True
 
@@ -154,6 +157,7 @@ def run_nat_instance_diagnostics(instance_id):
             DocumentName="AWS-RunShellScript",
             Parameters={"commands": diagnostic_script},
             Comment="Run NAT instance diagnostics",
+            TimeoutSeconds=SSM_TIMEOUT_SECONDS
         )
         command_id = response['Command']['CommandId']
         time.sleep(5)  # Allow some time for the command to execute
@@ -176,6 +180,9 @@ def run_nat_instance_diagnostics(instance_id):
         if "masquerade" not in output:
             logger.warning("NAT instance nftables missing 'masquerade' rule — SNAT may be broken.")
             return False
+        if is_source_dest_check_enabled(instance_id):
+            logger.warning("Source/destination check is ENABLED — this will break NAT functionality.")
+            return False
 
         return True
 
@@ -183,10 +190,17 @@ def run_nat_instance_diagnostics(instance_id):
         logger.error("SSM diagnostic command failed: %s", str(e))
         return False
 
-
+def is_source_dest_check_enabled(instance_id):
+    ec2 = boto3.client('ec2')
+    try:
+        response = ec2.describe_instances(InstanceIds=[instance_id])
+        attr = response['Reservations'][0]['Instances'][0].get('SourceDestCheck', True)
+        return attr
+    except Exception as e:
+        logger.error(f"Error checking source/dest check: {e}")
+        return False
 
 def attempt_nat_instance_restore():
-
     ssm_client = boto3.client('ssm')
     nat_instance_id = get_current_nat_instance_id(os.getenv("NAT_ASG_NAME"))
     route_tables = os.getenv("ROUTE_TABLE_IDS_CSV", "").split(",")
@@ -207,6 +221,7 @@ def attempt_nat_instance_restore():
         response = ssm_client.send_command(
             InstanceIds=[nat_instance_id],
             DocumentName="AWS-RunShellScript",
+            TimeoutSeconds=SSM_TIMEOUT_SECONDS,
             Parameters={
                 "commands": commands
             },
