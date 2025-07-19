@@ -216,31 +216,44 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_call_connectivity_tester" 
   source_arn    = aws_cloudwatch_event_rule.every_minute.arn
 }
 
-resource "aws_iam_policy" "lambda_ssm_send_command" {
-  name = "AllowLambdaToSendSSMCommand"
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        "Sid" : "AllowSSMSendCommandOnDocument",
-        "Effect" : "Allow",
-        "Action" : "ssm:SendCommand",
-        "Resource" : "arn:aws:ssm:${data.aws_region.current.name}/AWS-RunShellScript"
-      },
-      {
-        "Sid" : "AllowSSMCommandOnInstances",
-        "Effect" : "Allow",
-        "Action" : [
-          "ssm:SendCommand",
-          "ssm:GetCommandInvocation"
-        ],
-        "Resource" : "*"
-      }
+data "aws_iam_policy_document" "lambda_ssm_send_command_document" {
+  statement {
+    sid    = "AllowSSMSendCommandOnDocument"
+    effect = "Allow"
+
+    actions = [
+      "ssm:SendCommand",
     ]
-  })
+
+    resources = [
+      "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunShellScript"
+    ]
+  }
+
+  statement {
+    sid    = "AllowSSMCommandOnInstances"
+    effect = "Allow"
+
+    actions = [
+      "ssm:SendCommand",
+      "ssm:GetCommandInvocation"
+    ]
+
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/alterNATInstance"
+      values   = ["true"]
+    }
+  }
+}
+
+resource "aws_iam_policy" "lambda_ssm_send_command_policy" {
+  name   = "AllowLambdaToSendSSMCommand"
+  policy = data.aws_iam_policy_document.lambda_ssm_send_command_document.json
 }
 
 resource "aws_iam_role_policy_attachment" "attach_lambda_ssm_policy" {
   role       = aws_iam_role.nat_lambda_role.name
-  policy_arn = aws_iam_policy.lambda_ssm_send_command.arn
+  policy_arn = aws_iam_policy.lambda_ssm_send_command_policy.arn
 }

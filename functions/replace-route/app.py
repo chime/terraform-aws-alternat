@@ -116,19 +116,7 @@ def get_nat_gateway_id(vpc_id, subnet_id):
     return nat_gateway_id
 
 
-def replace_route(route_table_id, target_id, use_instance=False):
-    if use_instance:
-        new_route_table = {
-            "DestinationCidrBlock": "0.0.0.0/0",
-            "InstanceId": target_id,
-            "RouteTableId": route_table_id
-        }
-    else:
-        new_route_table = {
-            "DestinationCidrBlock": "0.0.0.0/0",
-            "NatGatewayId": target_id,
-            "RouteTableId": route_table_id
-        }
+def replace_route(route_table_id, new_route_table):
     try:
         logger.info("Replacing existing route %s for route table %s", route_table_id, new_route_table)
         ec2_client.replace_route(**new_route_table)
@@ -244,7 +232,7 @@ def attempt_nat_instance_restore():
                     logger.warning("Skipping route restore due to failed NAT diagnostics.")
                     return
                 for rtb in route_tables:
-                    replace_route(rtb, nat_instance_id, use_instance=True)
+                    replace_route(rtb, { "DestinationCidrBlock": "0.0.0.0/0", "InstanceId": nat_instance_id, "RouteTableId": rtb })
                     logger.info("Route table %s now points to NAT instance %s", rtb, nat_instance_id)
                 return
             else:
@@ -297,7 +285,7 @@ def check_connection(check_urls):
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
 
     for rtb in route_tables:
-        replace_route(rtb, nat_gateway_id, use_instance=False)
+        replace_route(rtb, { "DestinationCidrBlock": "0.0.0.0/0", "NatGatewayId": nat_gateway_id, "RouteTableId": rtb })
         logger.info("Route replacement succeeded")
     return False
 
@@ -372,7 +360,7 @@ def handler(event, _):
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
 
     for rtb in route_tables:
-        replace_route(rtb, nat_gateway_id, use_instance=False)
+        replace_route(rtb, { "DestinationCidrBlock": "0.0.0.0/0", "NatGatewayId": nat_gateway_id, "RouteTableId": rtb })
         logger.info("Route replacement succeeded")
 
 
