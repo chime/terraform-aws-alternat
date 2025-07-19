@@ -158,7 +158,8 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
         ROUTE_TABLE_IDS_CSV = join(",", each.value.route_table_ids),
         PUBLIC_SUBNET_ID    = each.value.public_subnet_id
         CHECK_URLS          = join(",", var.connectivity_test_check_urls)
-        NAT_GATEWAY_ID      = var.nat_gateway_id,
+        NAT_GATEWAY_ID      = var.nat_gateway_id
+        NAT_ASG_NAME        = aws_autoscaling_group.nat_instance.name
       },
       local.has_ipv6_env_var,
       var.lambda_environment_variables,
@@ -213,4 +214,46 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_call_connectivity_tester" 
   function_name = aws_lambda_function.alternat_connectivity_tester[each.key].function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.every_minute.arn
+}
+
+data "aws_iam_policy_document" "lambda_ssm_send_command_document" {
+  statement {
+    sid    = "AllowSSMSendCommandOnDocument"
+    effect = "Allow"
+
+    actions = [
+      "ssm:SendCommand",
+    ]
+
+    resources = [
+      "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunShellScript"
+    ]
+  }
+
+  statement {
+    sid    = "AllowSSMCommandOnInstances"
+    effect = "Allow"
+
+    actions = [
+      "ssm:SendCommand",
+      "ssm:GetCommandInvocation"
+    ]
+
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/alterNATInstance"
+      values   = ["true"]
+    }
+  }
+}
+
+resource "aws_iam_policy" "lambda_ssm_send_command_policy" {
+  name   = "AllowLambdaToSendSSMCommand"
+  policy = data.aws_iam_policy_document.lambda_ssm_send_command_document.json
+}
+
+resource "aws_iam_role_policy_attachment" "attach_lambda_ssm_policy" {
+  role       = aws_iam_role.nat_lambda_role.name
+  policy_arn = aws_iam_policy.lambda_ssm_send_command_policy.arn
 }

@@ -30,6 +30,9 @@ DEFAULT_CHECK_URLS = ["https://www.example.com", "https://www.google.com"]
 # The timeout for the connectivity checks.
 REQUEST_TIMEOUT = 5
 
+# Waiting time for SSM to start commands.
+SSM_TIMEOUT_SECONDS = 5
+
 # Whether or not use IPv6.
 DEFAULT_HAS_IPV6 = True
 
@@ -113,12 +116,7 @@ def get_nat_gateway_id(vpc_id, subnet_id):
     return nat_gateway_id
 
 
-def replace_route(route_table_id, nat_gateway_id):
-    new_route_table = {
-        "DestinationCidrBlock": "0.0.0.0/0",
-        "NatGatewayId": nat_gateway_id,
-        "RouteTableId": route_table_id
-    }
+def replace_route(route_table_id, new_route_table):
     try:
         logger.info("Replacing existing route %s for route table %s", route_table_id, new_route_table)
         ec2_client.replace_route(**new_route_table)
@@ -126,6 +124,127 @@ def replace_route(route_table_id, nat_gateway_id):
         logger.error("Unable to replace route")
         raise error
 
+def run_nat_instance_diagnostics(instance_id):
+    """
+    Runs a basic diagnostic script via SSM on the NAT instance.
+    It checks if IP forwarding is enabled and lists the nftables NAT configuration.
+    Returns True if configuration is healthy, False otherwise.
+    """
+    ssm_client = boto3.client("ssm")
+
+    diagnostic_script = [
+        "#!/bin/bash",
+        "set -e",
+        "echo 'ip_forward='$(cat /proc/sys/net/ipv4/ip_forward)",
+        "echo 'nft_nat_table='$(nft list table ip nat 2>/dev/null || echo 'nftables nat table not found')"
+    ]
+
+    try:
+        response = ssm_client.send_command(
+            InstanceIds=[instance_id],
+            DocumentName="AWS-RunShellScript",
+            Parameters={"commands": diagnostic_script},
+            Comment="Run NAT instance diagnostics",
+            TimeoutSeconds=SSM_TIMEOUT_SECONDS
+        )
+        command_id = response['Command']['CommandId']
+        time.sleep(5)  # Allow some time for the command to execute
+
+        invocation = ssm_client.get_command_invocation(
+            CommandId=command_id,
+            InstanceId=instance_id,
+        )
+
+        output = invocation.get('StandardOutputContent', '')
+
+        if invocation.get('StandardErrorContent'):
+            logger.warning("NAT instance diagnostic errors:\n%s", invocation['StandardErrorContent'])
+
+        # Check conditions
+        if "ip_forward=0" in output:
+            logger.warning("NAT instance has ip_forward=0 — IP forwarding is disabled.")
+            return False
+
+        if "masquerade" not in output:
+            logger.warning("NAT instance nftables missing 'masquerade' rule — SNAT may be broken.")
+            return False
+        if is_source_dest_check_enabled(instance_id):
+            logger.warning("Source/destination check is ENABLED — this will break NAT functionality.")
+            return False
+
+        return True
+
+    except botocore.exceptions.ClientError as e:
+        logger.error("SSM diagnostic command failed: %s", str(e))
+        return False
+
+def is_source_dest_check_enabled(instance_id):
+    ec2 = boto3.client('ec2')
+    try:
+        response = ec2.describe_instances(InstanceIds=[instance_id])
+        attr = response['Reservations'][0]['Instances'][0].get('SourceDestCheck', True)
+        return attr
+    except Exception as e:
+        logger.error(f"Error checking source/dest check: {e}")
+        return False
+
+def attempt_nat_instance_restore():
+    ssm_client = boto3.client('ssm')
+    nat_instance_id = get_current_nat_instance_id(os.getenv("NAT_ASG_NAME"))
+    route_tables = os.getenv("ROUTE_TABLE_IDS_CSV", "").split(",")
+
+    if not nat_instance_id or not route_tables:
+        logger.warning("NAT_INSTANCE_ID or ROUTE_TABLE_IDS_CSV not set. Skipping NAT restore.")
+        return
+
+    logger.info("Attempting to restore route to NAT Instance: %s", nat_instance_id)
+
+    try:
+        check_urls = os.getenv("CHECK_URLS", ",".join(DEFAULT_CHECK_URLS)).split(",")
+        commands = []
+        for url in check_urls:
+            command = f"curl -s -o /dev/null -w '%{{http_code}}\\n' --max-time 5 {url.strip()}"
+            commands.append(command)
+        # Send SSM command to test connectivity
+        response = ssm_client.send_command(
+            InstanceIds=[nat_instance_id],
+            DocumentName="AWS-RunShellScript",
+            TimeoutSeconds=SSM_TIMEOUT_SECONDS,
+            Parameters={
+                "commands": commands
+            },
+            Comment="Check Internet access from NAT instance via Lambda",
+        )
+        command_id = response['Command']['CommandId']
+        time.sleep(5)  # Wait briefly before checking command result
+
+        # Poll command result
+        invocation = ssm_client.get_command_invocation(
+            CommandId=command_id,
+            InstanceId=nat_instance_id,
+        )
+        if invocation['Status'] == "Success":
+            output = invocation['StandardOutputContent'].strip()
+            http_codes = output.splitlines()
+            if all(code == "200" for code in http_codes):
+                logger.info("NAT instance has Internet access, we can diagnose the NAT configuration.")
+                if not run_nat_instance_diagnostics(nat_instance_id):
+                    logger.warning("Skipping route restore due to failed NAT diagnostics.")
+                    return
+                for rtb in route_tables:
+                    replace_route(rtb, { "DestinationCidrBlock": "0.0.0.0/0", "InstanceId": nat_instance_id, "RouteTableId": rtb })
+                    logger.info("Route table %s now points to NAT instance %s", rtb, nat_instance_id)
+                return
+            else:
+                logger.warning("Invocation output: %s", invocation['StandardOutputContent'])
+        else:
+            logger.warning("NAT instance connectivity test failed or did not return expected result.")
+            
+
+    except botocore.exceptions.ClientError as e:
+        logger.error("SSM command failed: %s", str(e))
+    except Exception as ex:
+        logger.error("Unexpected error during NAT restore: %s", str(ex))
 
 def check_connection(check_urls):
     """
@@ -133,21 +252,25 @@ def check_connection(check_urls):
     If all fail, replaces the route table to point at a standby NAT Gateway and
     return failure.
     """
+    success = False
     for url in check_urls:
         try:
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'alternat/1.0')
             urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT)
             logger.debug("Successfully connected to %s", url)
-            return True
+            success = True
         except urllib.error.HTTPError as error:
             logger.warning("Response error from %s: %s, treating as success", url, error)
-            return True
+            success = True
         except urllib.error.URLError as error:
             logger.error("error connecting to %s: %s", url, error)
         except socket.timeout as error:
             logger.error("timeout error connecting to %s: %s", url, error)
 
+    if success:
+        attempt_nat_instance_restore()  # Try to restore NAT instance if we're currently using the gateway
+        return True
     logger.warning("Failed connectivity tests! Replacing route")
 
     public_subnet_id = os.getenv("PUBLIC_SUBNET_ID")
@@ -162,10 +285,22 @@ def check_connection(check_urls):
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
 
     for rtb in route_tables:
-        replace_route(rtb, nat_gateway_id)
+        replace_route(rtb, { "DestinationCidrBlock": "0.0.0.0/0", "NatGatewayId": nat_gateway_id, "RouteTableId": rtb })
         logger.info("Route replacement succeeded")
     return False
 
+def get_current_nat_instance_id(asg_name):
+    autoscaling = boto3.client("autoscaling")
+
+    try:
+        response = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
+        instances = response['AutoScalingGroups'][0]['Instances']
+        for instance in instances:
+            if instance['LifecycleState'] == 'InService':
+                return instance['InstanceId']
+    except Exception as e:
+        logger.error(f"Failed to retrieve NAT instance ID from ASG {asg_name}: {e}")
+        return None
 
 def connectivity_test_handler(event, context):
     if not isinstance(event, dict):
@@ -194,7 +329,6 @@ def connectivity_test_handler(event, context):
             run += 1
         else:
             break
-
 
 def get_env_bool(var_name, default_value=False):
     value = os.getenv(var_name, default_value)
@@ -226,7 +360,7 @@ def handler(event, _):
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
 
     for rtb in route_tables:
-        replace_route(rtb, nat_gateway_id)
+        replace_route(rtb, { "DestinationCidrBlock": "0.0.0.0/0", "NatGatewayId": nat_gateway_id, "RouteTableId": rtb })
         logger.info("Route replacement succeeded")
 
 
