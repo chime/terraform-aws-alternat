@@ -218,7 +218,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_call_connectivity_tester" 
 
 data "aws_iam_policy_document" "lambda_ssm_send_command_document" {
   statement {
-    sid    = "AllowSSMSendCommandOnDocument"
+    sid    = "AllowSSMSendCommandOnDocumentAndInstances"
     effect = "Allow"
 
     actions = [
@@ -226,25 +226,19 @@ data "aws_iam_policy_document" "lambda_ssm_send_command_document" {
     ]
 
     resources = [
-      "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunShellScript"
+      "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunShellScript",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.id}:instance/*"
     ]
   }
-
   statement {
-    sid    = "AllowSSMCommandOnInstances"
+    sid    = "AllowSSMAndEC2ReadOps"
     effect = "Allow"
 
     actions = [
-      "ssm:SendCommand",
-      "ssm:GetCommandInvocation"
+      "ssm:GetCommandInvocation",
+      "ec2:DescribeInstances"
     ]
-
     resources = ["*"]
-    condition {
-      test     = "StringEquals"
-      variable = "ec2:ResourceTag/alterNATInstance"
-      values   = ["true"]
-    }
   }
 }
 

@@ -31,7 +31,7 @@ DEFAULT_CHECK_URLS = ["https://www.example.com", "https://www.google.com"]
 REQUEST_TIMEOUT = 5
 
 # Waiting time for SSM to start commands.
-SSM_TIMEOUT_SECONDS = 5
+SSM_TIMEOUT_SECONDS = 30
 
 # Whether or not use IPv6.
 DEFAULT_HAS_IPV6 = True
@@ -168,8 +168,12 @@ def run_nat_instance_diagnostics(instance_id):
         if "masquerade" not in output:
             logger.warning("NAT instance nftables missing 'masquerade' rule — SNAT may be broken.")
             return False
-        if is_source_dest_check_enabled(instance_id):
+        
+        if is_source_dest_check_enabled(instance_id) is True:
             logger.warning("Source/destination check is ENABLED — this will break NAT functionality.")
+            return False
+        if is_source_dest_check_enabled(instance_id) is None:
+            logger.warning("Skipping NAT restore due to error checking source/dest.")
             return False
 
         return True
@@ -186,6 +190,19 @@ def is_source_dest_check_enabled(instance_id):
         return attr
     except Exception as e:
         logger.error(f"Error checking source/dest check: {e}")
+        return None
+
+def are_any_routes_pointing_to_nat_gateway(route_table_ids):
+    ec2 = boto3.client('ec2')
+    try:
+        response = ec2.describe_route_tables(RouteTableIds=route_table_ids)
+        for rtb in response.get('RouteTables', []):
+            for route in rtb.get('Routes', []):
+                if route.get('DestinationCidrBlock') == "0.0.0.0/0" and 'NatGatewayId' in route and route.get('State') == 'active':
+                    return True
+        return False
+    except Exception as e:
+        logger.error(f"Error checking NAT Gateway routes: {e}")
         return False
 
 def attempt_nat_instance_restore():
@@ -228,8 +245,12 @@ def attempt_nat_instance_restore():
             http_codes = output.splitlines()
             if all(code == "200" for code in http_codes):
                 logger.info("NAT instance has Internet access, we can diagnose the NAT configuration.")
-                if not run_nat_instance_diagnostics(nat_instance_id):
-                    logger.warning("Skipping route restore due to failed NAT diagnostics.")
+                try:
+                    if not run_nat_instance_diagnostics(nat_instance_id):
+                        logger.warning("Skipping route restore due to failed NAT diagnostics.")
+                        return
+                except Exception as diag_error:
+                    logger.error("Unexpected error during NAT diagnostics: %s", str(diag_error))
                     return
                 for rtb in route_tables:
                     replace_route(rtb, { "DestinationCidrBlock": "0.0.0.0/0", "InstanceId": nat_instance_id, "RouteTableId": rtb })
@@ -268,18 +289,23 @@ def check_connection(check_urls):
         except socket.timeout as error:
             logger.error("timeout error connecting to %s: %s", url, error)
 
+    route_tables = "ROUTE_TABLE_IDS_CSV" in os.environ and os.getenv("ROUTE_TABLE_IDS_CSV").split(",")
+    if not route_tables:
+        raise MissingEnvironmentVariableError("ROUTE_TABLE_IDS_CSV")
+    
     if success:
-        attempt_nat_instance_restore()  # Try to restore NAT instance if we're currently using the gateway
+        if are_any_routes_pointing_to_nat_gateway(route_tables):
+            attempt_nat_instance_restore()  # Try to restore NAT instance only if we have NAT gateway
+        else:
+            logger.info("Connectivity OK and already using NAT instance — no action needed.")
         return True
+
     logger.warning("Failed connectivity tests! Replacing route")
 
     public_subnet_id = os.getenv("PUBLIC_SUBNET_ID")
     if not public_subnet_id:
         raise MissingEnvironmentVariableError("PUBLIC_SUBNET_ID")
 
-    route_tables = "ROUTE_TABLE_IDS_CSV" in os.environ and os.getenv("ROUTE_TABLE_IDS_CSV").split(",")
-    if not route_tables:
-        raise MissingEnvironmentVariableError("ROUTE_TABLE_IDS_CSV")
     vpc_id = get_vpc_id(route_tables[0])
 
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
