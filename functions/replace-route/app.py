@@ -33,6 +33,9 @@ REQUEST_TIMEOUT = 5
 # Waiting time for SSM to start commands.
 SSM_TIMEOUT_SECONDS = 30
 
+# Whether or not return to the nat instance when the nat gateway is used.
+DEFAULT_ENABLE_NAT_RESTORE = False
+
 # Whether or not use IPv6.
 DEFAULT_HAS_IPV6 = True
 
@@ -116,7 +119,17 @@ def get_nat_gateway_id(vpc_id, subnet_id):
     return nat_gateway_id
 
 
-def replace_route(route_table_id, new_route_table):
+def replace_route(route_table_id, target_id):
+    new_route_table = {}
+    target_key = "NatGatewayId"
+    if target_id.startswith("i-"):
+        target_key = "InstanceId"
+    new_route_table = {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        target_key: target_id,
+        "RouteTableId": route_table_id
+    }
+
     try:
         logger.info("Replacing existing route %s for route table %s", route_table_id, new_route_table)
         ec2_client.replace_route(**new_route_table)
@@ -253,7 +266,7 @@ def attempt_nat_instance_restore():
                     logger.error("Unexpected error during NAT diagnostics: %s", str(diag_error))
                     return
                 for rtb in route_tables:
-                    replace_route(rtb, { "DestinationCidrBlock": "0.0.0.0/0", "InstanceId": nat_instance_id, "RouteTableId": rtb })
+                    replace_route(rtb, nat_instance_id)
                     logger.info("Route table %s now points to NAT instance %s", rtb, nat_instance_id)
                 return
             else:
@@ -272,33 +285,37 @@ def check_connection(check_urls):
     Checks connectivity to check_urls. If any of them succeed, return success.
     If all fail, replaces the route table to point at a standby NAT Gateway and
     return failure.
+
+    If ENABLE_NAT_RESTORE is set and we're currently using the NAT Gateway,
+    attempt to restore route to the NAT instance before checking connectivity.
     """
-    success = False
+    route_tables = os.getenv("ROUTE_TABLE_IDS_CSV", "").split(",")
+    if not route_tables:
+        raise MissingEnvironmentVariableError("ROUTE_TABLE_IDS_CSV")
+
+    restore_enabled = get_env_bool("ENABLE_NAT_RESTORE", DEFAULT_ENABLE_NAT_RESTORE)
+
+    # Step 1: Try failback to NAT instance if allowed and current route is NAT Gateway
+    if restore_enabled and are_any_routes_pointing_to_nat_gateway(route_tables):
+        logger.info("ENABLE_NAT_RESTORE=true and route is NAT Gateway. Trying to restore NAT instance...")
+        attempt_nat_instance_restore()
+        time.sleep(5)
+    
+    # Step 2: Test connectivity
     for url in check_urls:
         try:
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'alternat/1.0')
             urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT)
             logger.debug("Successfully connected to %s", url)
-            success = True
+            return True
         except urllib.error.HTTPError as error:
             logger.warning("Response error from %s: %s, treating as success", url, error)
-            success = True
+            return True
         except urllib.error.URLError as error:
             logger.error("error connecting to %s: %s", url, error)
         except socket.timeout as error:
             logger.error("timeout error connecting to %s: %s", url, error)
-
-    route_tables = "ROUTE_TABLE_IDS_CSV" in os.environ and os.getenv("ROUTE_TABLE_IDS_CSV").split(",")
-    if not route_tables:
-        raise MissingEnvironmentVariableError("ROUTE_TABLE_IDS_CSV")
-    
-    if success:
-        if are_any_routes_pointing_to_nat_gateway(route_tables):
-            attempt_nat_instance_restore()  # Try to restore NAT instance only if we have NAT gateway
-        else:
-            logger.info("Connectivity OK and already using NAT instance — no action needed.")
-        return True
 
     logger.warning("Failed connectivity tests! Replacing route")
 
@@ -311,7 +328,7 @@ def check_connection(check_urls):
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
 
     for rtb in route_tables:
-        replace_route(rtb, { "DestinationCidrBlock": "0.0.0.0/0", "NatGatewayId": nat_gateway_id, "RouteTableId": rtb })
+        replace_route(rtb, nat_gateway_id)
         logger.info("Route replacement succeeded")
     return False
 
@@ -386,7 +403,7 @@ def handler(event, _):
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
 
     for rtb in route_tables:
-        replace_route(rtb, { "DestinationCidrBlock": "0.0.0.0/0", "NatGatewayId": nat_gateway_id, "RouteTableId": rtb })
+        replace_route(rtb, nat_gateway_id)
         logger.info("Route replacement succeeded")
 
 
