@@ -333,9 +333,8 @@ def check_connection(check_urls):
     return False
 
 def get_current_nat_instance_id(asg_name):
-    autoscaling = boto3.client("autoscaling")
-
     try:
+        autoscaling = boto3.client("autoscaling")
         response = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
         instances = response['AutoScalingGroups'][0]['Instances']
         for instance in instances:
