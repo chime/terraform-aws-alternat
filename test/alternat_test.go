@@ -41,6 +41,7 @@ func TestAlternat(t *testing.T) {
 	// os.Setenv("SKIP_validate_alternat_basic", "true")
 	// os.Setenv("SKIP_validate_alternat_setup", "true")
 	// os.Setenv("SKIP_validate_alternat_replace_route", "true")
+	// os.Setenv("SKIP_validate_alternat_return_to_nat_instance", "true")
 	// os.Setenv("SKIP_cleanup", "true")
 
 	exampleFolder := test_structure.CopyTerraformFolderToTemp(t, "..", "examples/")
@@ -209,12 +210,12 @@ func TestAlternat(t *testing.T) {
 		// Validate that private route tables have routes to the Internet via NAT instance
 		maxRetries := 12
 		waitTime := 10 * time.Second
-		output := retry.DoWithRetry(t, "Validating route through NAT instance", maxRetries, waitTime, func() (string, error) {
+		output := retry.DoWithRetry(t, "Validating route returns to the NAT instance", maxRetries, waitTime, func() (string, error) {
 			routeTables, err := getRouteTables(t, ec2Client, vpcID)
 			require.NoError(t, err)
 			for _, rt := range routeTables {
 				for _, r := range rt.Routes {
-					if aws.ToString(r.DestinationCidrBlock) == "0.0.0.0/0" && r.NetworkInterfaceId == nil && r.InstanceId == nil {
+					if aws.ToString(r.DestinationCidrBlock) == "0.0.0.0/0" && r.GatewayId == nil && r.NetworkInterfaceId == nil {
 						return "", fmt.Errorf("Private route table %v does not have a route via NAT instance", *rt.RouteTableId)
 					}
 				}
