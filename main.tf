@@ -367,6 +367,7 @@ data "aws_iam_policy_document" "alternat_ec2_policy" {
     effect = "Allow"
     actions = [
       "ec2:ModifyInstanceAttribute",
+      "ec2:DescribeInstanceAttribute"
     ]
     resources = ["*"]
     condition {
