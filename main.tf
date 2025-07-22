@@ -40,8 +40,6 @@ locals {
   nat_gateway_eips        = var.prevent_destroy_eips ? aws_eip.protected_nat_gateway_eips : aws_eip.nat_gateway_eips
 }
 
-
-
 resource "aws_eip" "protected_nat_instance_eips" {
   count = (local.reuse_nat_instance_eips
     ? 0

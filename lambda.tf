@@ -160,6 +160,7 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
         CHECK_URLS          = join(",", var.connectivity_test_check_urls)
         NAT_GATEWAY_ID      = var.nat_gateway_id
         NAT_ASG_NAME        = aws_autoscaling_group.nat_instance[each.key].name
+        ENABLE_NAT_RESTORE  = var.enable_nat_restore
       },
       local.has_ipv6_env_var,
       var.lambda_environment_variables,

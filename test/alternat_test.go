@@ -194,7 +194,35 @@ func TestAlternat(t *testing.T) {
 		})
 		logger := logger.Logger{}
 		logger.Logf(t, output)
+	})
+
+	// Validate that Alternat returns to the NAT instance when the egress rules are restored
+	test_structure.RunTestStage(t, "validate_alternat_return_to_nat_instance", func() {
+		sgId := aws.String(test_structure.LoadString(t, exampleFolder, "sgId"))
+		vpcID := test_structure.LoadString(t, exampleFolder, "vpcID")
+		awsRegion := test_structure.LoadString(t, exampleFolder, "awsRegion")
+		ec2Client := getEc2Client(t, awsRegion)
+
+		// Restore the egress rules that allow access to the Internet from the instance
 		updateEgress(t, ec2Client, sgId, false)
+
+		// Validate that private route tables have routes to the Internet via NAT instance
+		maxRetries := 12
+		waitTime := 10 * time.Second
+		output := retry.DoWithRetry(t, "Validating route through NAT instance", maxRetries, waitTime, func() (string, error) {
+			routeTables, err := getRouteTables(t, ec2Client, vpcID)
+			require.NoError(t, err)
+			for _, rt := range routeTables {
+				for _, r := range rt.Routes {
+					if aws.ToString(r.DestinationCidrBlock) == "0.0.0.0/0" && r.NetworkInterfaceId == nil && r.InstanceId == nil {
+						return "", fmt.Errorf("Private route table %v does not have a route via NAT instance", *rt.RouteTableId)
+					}
+				}
+			}
+			return "All private route tables route through NAT instance", nil
+		})
+		logger := logger.Logger{}
+		logger.Logf(t, output)
 	})
 }
 

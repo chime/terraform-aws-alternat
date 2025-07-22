@@ -64,4 +64,5 @@ module "alternat" {
 
   nat_instance_type     = var.alternat_instance_type
   nat_instance_key_name = var.nat_instance_key_name
+  enable_nat_restore    = true
 }
