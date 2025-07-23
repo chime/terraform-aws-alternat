@@ -178,17 +178,42 @@ func TestAlternat(t *testing.T) {
 
 		updateEgress(t, ec2Client, sgId, true)
 
-		// Validate that private route tables have routes to the Internet via NAT Gateway
+		// Get the NAT Gateway IDs to validate routes point to any of the correct targets
+		expectedNatGwIds, err := getNatGatewayIds(t, ec2Client, vpcID)
+		require.NoError(t, err)
+		require.Greater(t, len(expectedNatGwIds), 0, "No NAT Gateway IDs found")
+
+		// Validate that private route tables have routes to the Internet via any of the NAT Gateways
 		maxRetries := 12
 		waitTime := 10 * time.Second
 		output := retry.DoWithRetry(t, "Validating route through NAT Gateway", maxRetries, waitTime, func() (string, error) {
 			routeTables, err := getRouteTables(t, ec2Client, vpcID)
 			require.NoError(t, err)
+
 			for _, rt := range routeTables {
+				foundCorrectRoute := false
 				for _, r := range rt.Routes {
-					if aws.ToString(r.DestinationCidrBlock) == "0.0.0.0/0" && r.GatewayId == nil && r.NatGatewayId == nil {
-						return "", fmt.Errorf("Private route table %v does not have a route via NAT Gateway", *rt.RouteTableId)
+					if aws.ToString(r.DestinationCidrBlock) == "0.0.0.0/0" {
+						// Check that this default route points to one of our expected NAT Gateways
+						currentNatGwId := aws.ToString(r.NatGatewayId)
+						for _, expectedNatGwId := range expectedNatGwIds {
+							if currentNatGwId == expectedNatGwId {
+								foundCorrectRoute = true
+								break
+							}
+						}
+						if foundCorrectRoute {
+							break
+						} else if currentNatGwId != "" {
+							// Route exists but points to wrong NAT Gateway
+							return "", fmt.Errorf("Private route table %v has 0.0.0.0/0 route pointing to NAT Gateway %v, which is not one of the expected NAT Gateways %v",
+								*rt.RouteTableId, currentNatGwId, expectedNatGwIds)
+						}
 					}
+				}
+				if !foundCorrectRoute {
+					return "", fmt.Errorf("Private route table %v does not have a 0.0.0.0/0 route pointing to any NAT Gateway %v",
+						*rt.RouteTableId, expectedNatGwIds)
 				}
 			}
 			return "All private route tables route through NAT Gateway", nil
@@ -207,17 +232,42 @@ func TestAlternat(t *testing.T) {
 		// Restore the egress rules that allow access to the Internet from the instance
 		updateEgress(t, ec2Client, sgId, false)
 
-		// Validate that private route tables have routes to the Internet via NAT instance
+		// Get the NAT instance ENI IDs to validate routes point to any of the correct targets
+		expectedEniIds, err := getNatInstanceEniIds(t, ec2Client)
+		require.NoError(t, err)
+		require.Greater(t, len(expectedEniIds), 0, "No NAT instance ENI IDs found")
+
+		// Validate that private route tables have routes to the Internet via any of the NAT instance ENIs
 		maxRetries := 12
 		waitTime := 10 * time.Second
 		output := retry.DoWithRetry(t, "Validating route returns to the NAT instance", maxRetries, waitTime, func() (string, error) {
 			routeTables, err := getRouteTables(t, ec2Client, vpcID)
 			require.NoError(t, err)
+
 			for _, rt := range routeTables {
+				foundCorrectRoute := false
 				for _, r := range rt.Routes {
-					if aws.ToString(r.DestinationCidrBlock) == "0.0.0.0/0" && r.GatewayId == nil && r.NetworkInterfaceId == nil {
-						return "", fmt.Errorf("Private route table %v does not have a route via NAT instance", *rt.RouteTableId)
+					if aws.ToString(r.DestinationCidrBlock) == "0.0.0.0/0" {
+						// Check that this default route points to one of our expected NAT instance ENIs
+						currentEniId := aws.ToString(r.NetworkInterfaceId)
+						for _, expectedEniId := range expectedEniIds {
+							if currentEniId == expectedEniId {
+								foundCorrectRoute = true
+								break
+							}
+						}
+						if foundCorrectRoute {
+							break
+						} else if currentEniId != "" {
+							// Route exists but points to wrong ENI
+							return "", fmt.Errorf("Private route table %v has 0.0.0.0/0 route pointing to ENI %v, which is not one of the expected NAT instance ENIs %v",
+								*rt.RouteTableId, currentEniId, expectedEniIds)
+						}
 					}
+				}
+				if !foundCorrectRoute {
+					return "", fmt.Errorf("Private route table %v does not have a 0.0.0.0/0 route pointing to any NAT instance ENI %v",
+						*rt.RouteTableId, expectedEniIds)
 				}
 			}
 			return "All private route tables route through NAT instance", nil
@@ -282,6 +332,107 @@ func getRouteTables(t *testing.T, client *ec2.Client, vpcID string) ([]ec2types.
 	require.Greaterf(t, len(result.RouteTables), 0, "Could not find a route table for vpc %s", vpcID)
 
 	return result.RouteTables, nil
+}
+
+func getNatGatewayIds(t *testing.T, ec2Client *ec2.Client, vpcID string) ([]string, error) {
+	input := &ec2.DescribeNatGatewaysInput{
+		Filter: []ec2types.Filter{
+			{
+				Name:   aws.String("vpc-id"),
+				Values: []string{vpcID},
+			},
+			{
+				Name:   aws.String("state"),
+				Values: []string{"available"},
+			},
+		},
+	}
+
+	maxRetries := 6
+	waitTime := 10 * time.Second
+	var finalNatGwIds []string
+
+	retry.DoWithRetry(t, "Get NAT Gateway IDs", maxRetries, waitTime, func() (string, error) {
+		result, err := ec2Client.DescribeNatGateways(context.TODO(), input)
+		if err != nil {
+			return "", err
+		}
+
+		if len(result.NatGateways) == 0 {
+			return "", fmt.Errorf("No NAT Gateways found in VPC %v", vpcID)
+		}
+
+		var natGwIds []string
+		for _, natGw := range result.NatGateways {
+			natGwId := aws.ToString(natGw.NatGatewayId)
+			if natGwId != "" {
+				natGwIds = append(natGwIds, natGwId)
+			}
+		}
+
+		if len(natGwIds) == 0 {
+			return "", fmt.Errorf("No valid NAT Gateway IDs found in VPC %v", vpcID)
+		}
+
+		finalNatGwIds = natGwIds
+		return "success", nil
+	})
+
+	return finalNatGwIds, nil
+}
+
+func getNatInstanceEniIds(t *testing.T, ec2Client *ec2.Client) ([]string, error) {
+	namePrefix := "alternat-"
+	input := &ec2.DescribeInstancesInput{
+		Filters: []ec2types.Filter{
+			{
+				Name:   aws.String("tag:Name"),
+				Values: []string{namePrefix + "*"},
+			},
+			{
+				Name:   aws.String("instance-state-name"),
+				Values: []string{"running"},
+			},
+		},
+	}
+
+	maxRetries := 6
+	waitTime := 10 * time.Second
+	var finalEniIds []string
+
+	retry.DoWithRetry(t, "Get NAT Instance ENI IDs", maxRetries, waitTime, func() (string, error) {
+		result, err := ec2Client.DescribeInstances(context.TODO(), input)
+		if err != nil {
+			return "", err
+		}
+
+		if len(result.Reservations) == 0 {
+			return "", fmt.Errorf("No NAT instances found")
+		}
+
+		var eniIds []string
+		for _, reservation := range result.Reservations {
+			for _, instance := range reservation.Instances {
+				if len(instance.NetworkInterfaces) == 0 {
+					continue // Skip instances without network interfaces
+				}
+				// Get the primary network interface (index 0)
+				eniId := aws.ToString(instance.NetworkInterfaces[0].NetworkInterfaceId)
+				if eniId != "" {
+					eniIds = append(eniIds, eniId)
+				}
+			}
+		}
+
+		if len(eniIds) == 0 {
+			return "", fmt.Errorf("No valid ENI IDs found for NAT instances")
+		}
+
+		finalEniIds = eniIds
+		return "success", nil
+	})
+
+	return finalEniIds, nil
 }
 
 func getNatInstancePublicIp(t *testing.T, ec2Client *ec2.Client) (string, error) {
