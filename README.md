@@ -79,6 +79,27 @@ The replace-route function also acts as a health check. Every minute, in the pri
 
 In the event that a NAT instance is unavailable, the function would have no route to the AWS EC2 API to perform the necessary steps to update the route table. This is mitigated by the use of an [interface VPC endpoint](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/interface-vpc-endpoints.html) to EC2.
 
+### NAT instance recovery
+
+If the route has previously been updated to use the standby NAT gateway due to a health check failure, the replace-route function can optionally attempt to detect recovery of the NAT instance. This allows the system to automatically recover and return to the preferred, cost-effective path of the NAT instance as soon as it is healthy.
+
+This feature is disabled by default. To enable it, set the following environment variable in the Lambda configuration:
+
+    lambda_environment_variables = {
+        ENABLE_NAT_RESTORE = "true"
+    }
+
+How it works:
+
+0. Assume that the connectivity check has failed and the route was updated to use the NAT Gateway.
+1. During the next connectivity check, attempt to restore the NAT instance
+2. Send an SSM command to `curl` the connectivity check URLs
+3. If the connection is successful, check the NAT configuration
+4. If the configuration is correct, update the route to use the NAT instance.
+5. Continue with regular connectivity checks through the NAT instance.
+
+Note that the route recovery feature does _not_ attempt to remediate any configuration issue on the instance; the instance remains immutable.
+
 ## Drawbacks
 
 No solution is without its downsides. To understand the primary drawback of this design, a brief discussion about how NAT works is warranted.
