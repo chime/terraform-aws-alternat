@@ -187,7 +187,7 @@ func TestAlternat(t *testing.T) {
 		maxRetries := 12
 		waitTime := 10 * time.Second
 		output := retry.DoWithRetry(t, "Validating route through NAT Gateway", maxRetries, waitTime, func() (string, error) {
-			routeTables, err := getRouteTables(t, ec2Client, vpcID)
+			routeTables, err := getPrivateRouteTables(t, ec2Client, vpcID)
 			require.NoError(t, err)
 
 			for _, rt := range routeTables {
@@ -241,7 +241,7 @@ func TestAlternat(t *testing.T) {
 		maxRetries := 12
 		waitTime := 10 * time.Second
 		output := retry.DoWithRetry(t, "Validating route returns to the NAT instance", maxRetries, waitTime, func() (string, error) {
-			routeTables, err := getRouteTables(t, ec2Client, vpcID)
+			routeTables, err := getPrivateRouteTables(t, ec2Client, vpcID)
 			require.NoError(t, err)
 
 			for _, rt := range routeTables {
@@ -313,6 +313,34 @@ func updateEgress(t *testing.T, ec2Client *ec2.Client, sgId *string, revoke bool
 		)
 		require.NoError(t, err)
 	}
+}
+
+func getPrivateRouteTables(t *testing.T, client *ec2.Client, vpcID string) ([]ec2types.RouteTable, error) {
+	allRouteTables, err := getRouteTables(t, client, vpcID)
+	if err != nil {
+		return nil, err
+	}
+
+	var privateRouteTables []ec2types.RouteTable
+	for _, rt := range allRouteTables {
+		isPrivate := true
+		// A route table is considered private if it doesn't have any routes to an Internet Gateway
+		for _, route := range rt.Routes {
+			if aws.ToString(route.DestinationCidrBlock) == "0.0.0.0/0" && route.GatewayId != nil &&
+				aws.ToString(route.GatewayId) != "local" && aws.ToString(route.GatewayId) != "" {
+				// Check if this is an Internet Gateway (IGW IDs start with "igw-")
+				if len(*route.GatewayId) > 4 && (*route.GatewayId)[:4] == "igw-" {
+					isPrivate = false
+					break
+				}
+			}
+		}
+		if isPrivate {
+			privateRouteTables = append(privateRouteTables, rt)
+		}
+	}
+
+	return privateRouteTables, nil
 }
 
 func getRouteTables(t *testing.T, client *ec2.Client, vpcID string) ([]ec2types.RouteTable, error) {
