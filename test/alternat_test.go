@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -323,16 +324,24 @@ func getPrivateRouteTables(t *testing.T, client *ec2.Client, vpcID string) ([]ec
 
 	var privateRouteTables []ec2types.RouteTable
 	for _, rt := range allRouteTables {
+		// Skip the main/default route table
+		isMainRouteTable := false
+		for _, assoc := range rt.Associations {
+			if assoc.Main != nil && *assoc.Main {
+				isMainRouteTable = true
+				break
+			}
+		}
+		if isMainRouteTable {
+			continue // Skip main route table
+		}
+
+		// Check if this is a private route table (doesn't route to IGW)
 		isPrivate := true
-		// A route table is considered private if it doesn't have any routes to an Internet Gateway
 		for _, route := range rt.Routes {
-			if aws.ToString(route.DestinationCidrBlock) == "0.0.0.0/0" && route.GatewayId != nil &&
-				aws.ToString(route.GatewayId) != "local" && aws.ToString(route.GatewayId) != "" {
-				// Check if this is an Internet Gateway (IGW IDs start with "igw-")
-				if len(*route.GatewayId) > 4 && (*route.GatewayId)[:4] == "igw-" {
-					isPrivate = false
-					break
-				}
+			if aws.ToString(route.DestinationCidrBlock) == "0.0.0.0/0" && route.GatewayId != nil && strings.HasPrefix(aws.ToString(route.GatewayId), "igw-") {
+				isPrivate = false
+				break
 			}
 		}
 		if isPrivate {
