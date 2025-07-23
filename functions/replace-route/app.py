@@ -181,7 +181,7 @@ def run_nat_instance_diagnostics(instance_id):
         if "masquerade" not in output:
             logger.warning("NAT instance nftables missing 'masquerade' rule — SNAT may be broken.")
             return False
-        
+
         if is_source_dest_check_enabled(instance_id) is True:
             logger.warning("Source/destination check is ENABLED — this will break NAT functionality.")
             return False
@@ -273,7 +273,7 @@ def attempt_nat_instance_restore():
                 logger.warning("Invocation output: %s", invocation['StandardOutputContent'])
         else:
             logger.warning("NAT instance connectivity test failed or did not return expected result.")
-            
+
 
     except botocore.exceptions.ClientError as e:
         logger.error("SSM command failed: %s", str(e))
@@ -300,7 +300,7 @@ def check_connection(check_urls):
         logger.info("ENABLE_NAT_RESTORE=true and route is NAT Gateway. Trying to restore NAT instance...")
         attempt_nat_instance_restore()
         time.sleep(5)
-    
+
     # Step 2: Test connectivity
     for url in check_urls:
         try:
