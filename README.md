@@ -77,6 +77,17 @@ When a NAT instance in any of the zonal ASGs is terminated, the lifecycle hook p
 
 The replace-route function also acts as a health check. Every minute, in the private subnet of each availability zone, the function checks that connectivity to the Internet works by requesting https://www.example.com and, if that fails, https://www.google.com. If the request succeeds, the function exits. If both requests fail, the NAT instance is presumably borked, and the function updates the route to point at the standby NAT gateway.
 
+If the route has previously been updated to use the standby NAT gateway due to a health check failure, the replace-route function can optionally attempt to restore routing to the NAT instance before continuing with connectivity testing. This allows the system to automatically recover and return to the preferred, cost-effective path of the NAT instance as soon as it is healthy.
+
+This recovery mechanism ensures that the use of the most expensive NAT gateway is temporary and only occurs when the NAT instance is unavailable. As soon as the NAT instance is back online and passes the diagnostic tests, the route is automatically re-established, minimising data transfer costs.
+
+This feature is disabled by default. To enable it, set the following environment variable in the Lambda configuration:
+```
+lambda_environment_variables = {
+  ENABLE_NAT_RESTORE = "true"
+}
+```
+
 In the event that a NAT instance is unavailable, the function would have no route to the AWS EC2 API to perform the necessary steps to update the route table. This is mitigated by the use of an [interface VPC endpoint](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/interface-vpc-endpoints.html) to EC2.
 
 ## Drawbacks
