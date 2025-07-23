@@ -133,7 +133,7 @@ def verify_nat_instance_route(mocked_networking, instance_id):
 
 
 @mock_aws
-def test_handler():
+def test_handler(monkeypatch):
     mocked_networking = setup_networking()
     ec2_client = boto3.client("ec2")
     template = ec2_client.create_launch_template(
@@ -160,7 +160,7 @@ def test_handler():
         asg_termination_event = file.read()
 
     az = f"{os.environ['AWS_DEFAULT_REGION']}a".upper().replace("-", "_")
-    os.environ[az] = ",".join([mocked_networking["route_table"],mocked_networking["route_table_two"]])
+    monkeypatch.setenv(az, ",".join([mocked_networking["route_table"],mocked_networking["route_table_two"]]))
 
     handler(json.loads(asg_termination_event), {})
 
@@ -198,7 +198,7 @@ def _process_lambda(func_str):
 @mock_aws
 @mock.patch('time.sleep')
 @mock.patch('urllib.request.urlopen')
-def test_connectivity_test_handler(mock_urlopen, mock_sleep):
+def test_connectivity_test_handler(mock_urlopen, mock_sleep, monkeypatch):
     from app import connectivity_test_handler
     mocked_networking = setup_networking()
 
@@ -218,9 +218,9 @@ def test_connectivity_test_handler(mock_urlopen, mock_sleep):
         function_name = lambda_function_name
 
     mock_urlopen.side_effect = socket.timeout()
-    os.environ["ROUTE_TABLE_IDS_CSV"] = ",".join([mocked_networking["route_table"], mocked_networking["route_table_two"]])
-    os.environ["PUBLIC_SUBNET_ID"] = mocked_networking["public_subnet"]
-    os.environ["ENABLE_NAT_RESTORE"] = "false"  # Disable NAT restore for this test
+    monkeypatch.setenv("ROUTE_TABLE_IDS_CSV", ",".join([mocked_networking["route_table"], mocked_networking["route_table_two"]]))
+    monkeypatch.setenv("PUBLIC_SUBNET_ID", mocked_networking["public_subnet"])
+    monkeypatch.setenv("ENABLE_NAT_RESTORE", "false")  # Disable NAT restore for this test
 
     connectivity_test_handler(event=json.loads(cloudwatch_event), context=Context())
 
@@ -350,7 +350,7 @@ def test_run_nat_instance_diagnostics(mock_sleep):
 
 @mock_aws
 @mock.patch('time.sleep')
-def test_attempt_nat_instance_restore(mock_sleep):
+def test_attempt_nat_instance_restore(mock_sleep, monkeypatch):
     from app import attempt_nat_instance_restore
 
     # Need to mock boto3.client to avoid calling AWS API
@@ -370,8 +370,8 @@ def test_attempt_nat_instance_restore(mock_sleep):
 
     # Setup environment
     route_tables = ['rtb-12345', 'rtb-67890']
-    os.environ["ROUTE_TABLE_IDS_CSV"] = ",".join(route_tables)
-    os.environ["NAT_ASG_NAME"] = "test-nat-asg"
+    monkeypatch.setenv("ROUTE_TABLE_IDS_CSV", ",".join(route_tables))
+    monkeypatch.setenv("NAT_ASG_NAME", "test-nat-asg")
 
     # Mock successful test and diagnostic
     with mock.patch('app.get_current_nat_instance_id', return_value='i-test123'):
@@ -421,16 +421,10 @@ def test_attempt_nat_instance_restore(mock_sleep):
                 # Should not call replace_route
                 assert mock_replace_route.call_count == 0
 
-        # Clean up
-        if "ROUTE_TABLE_IDS_CSV" in os.environ:
-            del os.environ["ROUTE_TABLE_IDS_CSV"]
-        if "NAT_ASG_NAME" in os.environ:
-            del os.environ["NAT_ASG_NAME"]
-
 
 @mock_aws
 @mock.patch('time.sleep')
-def test_nat_restore_option(mock_sleep):
+def test_nat_restore_option(mock_sleep, monkeypatch):
     from app import connectivity_test_handler
     mocked_networking = setup_networking()
 
@@ -446,10 +440,10 @@ def test_nat_restore_option(mock_sleep):
     class Context:
         function_name = "alternat-connectivity-test"
 
-    os.environ["ROUTE_TABLE_IDS_CSV"] = ",".join([mocked_networking["route_table"], mocked_networking["route_table_two"]])
-    os.environ["PUBLIC_SUBNET_ID"] = mocked_networking["public_subnet"]
-    os.environ["NAT_ASG_NAME"] = "alternat-nat-asg"
-    os.environ["CONNECTIVITY_CHECK_INTERVAL"] = "60"
+    monkeypatch.setenv("ROUTE_TABLE_IDS_CSV", ",".join([mocked_networking["route_table"], mocked_networking["route_table_two"]]))
+    monkeypatch.setenv("PUBLIC_SUBNET_ID", mocked_networking["public_subnet"])
+    monkeypatch.setenv("NAT_ASG_NAME", "alternat-nat-asg")
+    monkeypatch.setenv("CONNECTIVITY_CHECK_INTERVAL", "60")
 
     # Use a with block for urllib mocking
     with mock.patch('urllib.request.urlopen') as mock_urlopen:
@@ -462,7 +456,7 @@ def test_nat_restore_option(mock_sleep):
             mock_restore.assert_not_called()  # Should not try to restore
 
         # Test with NAT restore enabled
-        os.environ["ENABLE_NAT_RESTORE"] = "true"
+        monkeypatch.setenv("ENABLE_NAT_RESTORE", "true")
 
         # Mock that we're using NAT Gateway
         with mock.patch('app.are_any_routes_pointing_to_nat_gateway', return_value=True):
@@ -470,13 +464,3 @@ def test_nat_restore_option(mock_sleep):
             with mock.patch('app.attempt_nat_instance_restore') as mock_restore:
                 connectivity_test_handler(event=json.loads(cloudwatch_event), context=Context())
                 mock_restore.assert_called_once()  # Should try to restore
-
-    # Clean up
-    if "ENABLE_NAT_RESTORE" in os.environ:
-        del os.environ["ENABLE_NAT_RESTORE"]
-    if "ROUTE_TABLE_IDS_CSV" in os.environ:
-        del os.environ["ROUTE_TABLE_IDS_CSV"]
-    if "PUBLIC_SUBNET_ID" in os.environ:
-        del os.environ["PUBLIC_SUBNET_ID"]
-    if "NAT_ASG_NAME" in os.environ:
-        del os.environ["NAT_ASG_NAME"]
