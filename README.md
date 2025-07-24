@@ -96,6 +96,8 @@ How it works:
 
 Note that the route recovery feature does _not_ attempt to remediate any configuration issue on the instance; the instance remains immutable.
 
+Also, one edge case of this feature is that it can potentially lead to an infinite loop of NAT Gateway => NAT Instance => NAT Gateway. Imagine a scenario where `curl` commands succeed from the instance, and the instance appears to be configured correctly, so the NAT instance route is restored. But in actuality, a security group rule prevents traffic from reaching the NAT instance. In this case, during every connectivity check interval the Lambda will update the route to use the instance, but then will immediately update the route again to use the NAT Gateway. This can happen until the security group rule is fixed. However, this is an unlikely edge case.
+
 ## Drawbacks
 
 No solution is without its downsides. To understand the primary drawback of this design, a brief discussion about how NAT works is warranted.
