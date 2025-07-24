@@ -219,7 +219,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_call_connectivity_tester" 
 
 data "aws_iam_policy_document" "lambda_ssm_send_command_document" {
   statement {
-    sid    = "AllowSSMSendCommandOnDocumentAndInstances"
+    sid    = "AllowSSMSendCommandOnDocument"
     effect = "Allow"
 
     actions = [
@@ -228,8 +228,26 @@ data "aws_iam_policy_document" "lambda_ssm_send_command_document" {
 
     resources = [
       "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunShellScript",
+    ]
+  }
+  statement {
+    sid    = "AllowSSMSendCommandOnInstances"
+    effect = "Allow"
+
+    actions = [
+      "ssm:SendCommand",
+    ]
+
+    resources = [
       "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.id}:instance/*"
     ]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/alterNATInstance"
+      values = [
+        "true"
+      ]
+    }
   }
   statement {
     sid    = "AllowSSMAndEC2ReadOps"
@@ -244,11 +262,13 @@ data "aws_iam_policy_document" "lambda_ssm_send_command_document" {
 }
 
 resource "aws_iam_policy" "lambda_ssm_send_command_policy" {
+  count  = var.enable_nat_restore ? 1 : 0
   name   = "AllowLambdaToSendSSMCommand"
   policy = data.aws_iam_policy_document.lambda_ssm_send_command_document.json
 }
 
 resource "aws_iam_role_policy_attachment" "attach_lambda_ssm_policy" {
+  count      = var.enable_nat_restore ? 1 : 0
   role       = aws_iam_role.nat_lambda_role.name
-  policy_arn = aws_iam_policy.lambda_ssm_send_command_policy.arn
+  policy_arn = aws_iam_policy.lambda_ssm_send_command_policy[0].arn
 }

@@ -96,6 +96,8 @@ How it works:
 
 Note that the route recovery feature does _not_ attempt to remediate any configuration issue on the instance; the instance remains immutable.
 
+Also, under certain edge cases, this can potentially lead to flapping between NAT Gateway => NAT Instance => NAT Gateway => NAT Instance. Imagine a scenario where `curl` commands succeed from the NAT instance, and it appears to be configured correctly, so the NAT instance route is restored. But in actuality, a missing security group rule prevents traffic from reaching the NAT instance. During every connectivity check interval, the Lambda will update the route to use the instance since it appears healthy, but then the regular connectivity checks fail due to the missing security group rule, so the Lambda will immediately replace the route again pointing at NAT Gateway. This can happen until the security group rule is fixed.
+
 ## Drawbacks
 
 No solution is without its downsides. To understand the primary drawback of this design, a brief discussion about how NAT works is warranted.
@@ -242,7 +244,7 @@ AlterNATively, you can remove the NAT Gateways and their EIPs from your existing
 
 - We intentionally use `most_recent=true` for the Amazon Linux 2 AMI. This helps to ensure that the latest AMI is used in the ASG launch template. If a new AMI is available when you run `terraform apply`, the launch template will be updated with the latest AMI. The new AMI will be launched automatically when the maximum instance lifetime is reached.
 
-- Most of the time, except when the instance is actively being replaces, NAT traffic should be routed through the NAT instance and NOT through the NAT Gateway. You should monitor your logs for the text "Failed connectivity tests! Replacing route" and alert when this occurs as you may need to manually intervene to resolve a problem with the NAT instances.
+- Most of the time, except when the instance is actively being replaced, NAT traffic should be routed through the NAT instance and NOT through the NAT Gateway. You can monitor the logs for the text "Failed connectivity tests! Replacing route" to be alerted to NAT instance failures.
 
 - There are four Elastic IP addresses for the NAT instances and four for the NAT Gateways. Be sure to add all eight addresses to any external allow lists if necessary.
 
