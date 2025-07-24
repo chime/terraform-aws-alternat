@@ -207,7 +207,9 @@ func TestAlternat(t *testing.T) {
 								break
 							}
 						}
-						if currentNatGwId != "" {
+						if foundCorrectRoute {
+							break
+						} else if currentNatGwId != "" {
 							// Route exists but points to wrong NAT Gateway
 							return "", fmt.Errorf("Private route table %v has 0.0.0.0/0 route pointing to NAT Gateway %v, which is not one of the expected NAT Gateways %v",
 								*rt.RouteTableId, currentNatGwId, expectedNatGwIds)
