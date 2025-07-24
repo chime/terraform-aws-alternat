@@ -256,10 +256,14 @@ func TestAlternat(t *testing.T) {
 
 			for _, rt := range routeTables {
 				foundCorrectRoute := false
+				var currentRouteTarget string
 				for _, r := range rt.Routes {
 					if aws.ToString(r.DestinationCidrBlock) == "0.0.0.0/0" {
 						// Check that this default route points to one of our expected NAT instance ENIs
 						currentEniId := aws.ToString(r.NetworkInterfaceId)
+						currentRouteTarget = fmt.Sprintf("NatGatewayId=%s, InstanceId=%s, NetworkInterfaceId=%s, GatewayId=%s",
+							aws.ToString(r.NatGatewayId), aws.ToString(r.InstanceId), aws.ToString(r.NetworkInterfaceId), aws.ToString(r.GatewayId))
+
 						for _, expectedEniId := range expectedEniIds {
 							if currentEniId == expectedEniId {
 								foundCorrectRoute = true
@@ -276,8 +280,13 @@ func TestAlternat(t *testing.T) {
 					}
 				}
 				if !foundCorrectRoute {
-					return "", fmt.Errorf("Private route table %v does not have a 0.0.0.0/0 route pointing to any NAT instance ENI %v",
-						*rt.RouteTableId, expectedEniIds)
+					if currentRouteTarget != "" {
+						return "", fmt.Errorf("Private route table %v has 0.0.0.0/0 route pointing to %s instead of expected NAT instance ENIs %v",
+							*rt.RouteTableId, currentRouteTarget, expectedEniIds)
+					} else {
+						return "", fmt.Errorf("Private route table %v does not have a 0.0.0.0/0 route pointing to any NAT instance ENI %v",
+							*rt.RouteTableId, expectedEniIds)
+					}
 				}
 			}
 			return "All private route tables route through NAT instance", nil
