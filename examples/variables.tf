@@ -22,6 +22,18 @@ variable "enable_nat_gateway" {
   default     = false
 }
 
+variable "enable_nat_restore" {
+  description = "Whether to enable NAT restore."
+  type        = bool
+  default     = true
+}
+
+variable "enable_ssm" {
+  description = "Whether to enable SSM."
+  type        = bool
+  default     = true
+}
+
 variable "nat_instance_key_name" {
   description = "The name of the key pair to use for the NAT instances."
   type        = string
