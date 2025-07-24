@@ -67,6 +67,12 @@ variable "enable_ssm" {
   default     = true
 }
 
+variable "enable_nat_restore" {
+  description = "Whether to enable NAT restore functionality."
+  type        = bool
+  default     = false
+}
+
 variable "ingress_security_group_ids" {
   description = "A list of security group IDs that are allowed by the NAT instance."
   type        = list(string)

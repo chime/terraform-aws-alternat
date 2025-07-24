@@ -83,11 +83,7 @@ In the event that a NAT instance is unavailable, the function would have no rout
 
 If the route has previously been updated to use the standby NAT gateway due to a health check failure, the replace-route function can optionally attempt to detect recovery of the NAT instance. This allows the system to automatically recover and return to the preferred, cost-effective path of the NAT instance as soon as it is healthy.
 
-This feature is disabled by default. To enable it, set the following environment variable in the Lambda configuration:
-
-    lambda_environment_variables = {
-        ENABLE_NAT_RESTORE = "true"
-    }
+This feature is disabled by default. To enable it, set `enable_nat_restore=true` and `enable_ssm=true`.
 
 How it works:
 
