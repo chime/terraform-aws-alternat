@@ -73,6 +73,17 @@ variable "enable_nat_restore" {
   default     = false
 }
 
+variable "enable_multi_region" {
+  type = object({
+    enable         = bool
+    primary_region = string
+  })
+  default = {
+    enable         = false
+    primary_region = "us-east-1"
+  }
+}
+
 variable "ingress_security_group_ids" {
   description = "A list of security group IDs that are allowed by the NAT instance."
   type        = list(string)

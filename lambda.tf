@@ -262,13 +262,19 @@ data "aws_iam_policy_document" "lambda_ssm_send_command_document" {
 }
 
 resource "aws_iam_policy" "lambda_ssm_send_command_policy" {
-  count  = var.enable_nat_restore ? 1 : 0
+  count = var.enable_nat_restore && (
+    !var.enable_multi_region.enable || data.aws_region.current.name == var.enable_multi_region.primary_region
+  ) ? 1 : 0
+
   name   = "AllowLambdaToSendSSMCommand"
   policy = data.aws_iam_policy_document.lambda_ssm_send_command_document.json
 }
 
 resource "aws_iam_role_policy_attachment" "attach_lambda_ssm_policy" {
-  count      = var.enable_nat_restore ? 1 : 0
+  count = var.enable_nat_restore && (
+    !var.enable_multi_region.enable || data.aws_region.current.name == var.enable_multi_region.primary_region
+  ) ? 1 : 0
+
   role       = aws_iam_role.nat_lambda_role.name
   policy_arn = aws_iam_policy.lambda_ssm_send_command_policy[0].arn
 }
