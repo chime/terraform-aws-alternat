@@ -73,15 +73,10 @@ variable "enable_nat_restore" {
   default     = false
 }
 
-variable "enable_multi_region" {
-  type = object({
-    enable         = bool
-    primary_region = string
-  })
-  default = {
-    enable         = false
-    primary_region = "us-east-1"
-  }
+variable "enable_lambda_ssm_policy" {
+  type        = bool
+  description = "Whether the lambda policy can be created. This is important when we want to deploy AlterNAT in several regions as IAM is global."
+  default     = true
 }
 
 variable "ingress_security_group_ids" {
