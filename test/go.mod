@@ -1,7 +1,6 @@
 module github.com/chime/terraform-aws-alternat
 
-go 1.22.3
-toolchain go1.23.7
+go 1.23.7
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.26.1
