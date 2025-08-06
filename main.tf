@@ -267,6 +267,13 @@ resource "aws_launch_template" "nat_instance_template" {
     })
   }
 
+  tag_specifications {
+    resource_type = "volume"
+
+    tags = merge(var.tags, {
+      alterNATInstance = "true",
+    })
+  }
   user_data = data.cloudinit_config.config[each.key].rendered
 }
 
