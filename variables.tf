@@ -73,12 +73,6 @@ variable "enable_nat_restore" {
   default     = false
 }
 
-variable "enable_lambda_ssm_policy" {
-  type        = bool
-  description = "Whether the lambda policy can be created. This is important when we want to deploy AlterNAT in several regions as IAM is global."
-  default     = true
-}
-
 variable "ingress_security_group_ids" {
   description = "A list of security group IDs that are allowed by the NAT instance."
   type        = list(string)
