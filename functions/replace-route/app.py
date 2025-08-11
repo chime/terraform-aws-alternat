@@ -104,6 +104,10 @@ def get_nat_gateway_id(vpc_id, subnet_id):
                     "Name": "subnet-id",
                     "Values": [subnet_id]
                 },
+                {
+                    "Name": "state",
+                    "Values": ["available"]
+                }
             ]
         )
     except botocore.exceptions.ClientError as error:
