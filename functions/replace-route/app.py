@@ -256,7 +256,7 @@ def attempt_nat_instance_restore():
         if invocation['Status'] == "Success":
             output = invocation['StandardOutputContent'].strip()
             http_codes = output.splitlines()
-            if all(code == "200" for code in http_codes):
+            if all(int(code) < 500 for code in http_codes):
                 logger.info("NAT instance has Internet access, we can diagnose the NAT configuration.")
                 try:
                     if not run_nat_instance_diagnostics(nat_instance_id):
