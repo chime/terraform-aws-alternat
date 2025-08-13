@@ -35,7 +35,7 @@ validate_var() {
 # configure_nat() sets up Linux to act as a NAT device.
 # See https://docs.aws.amazon.com/vpc/latest/userguide/VPC_NAT_Instance.html#NATInstance
 configure_nat() {
-   dnf -y install nftables
+   dnf -y install nftables conntrack-tools
    systemctl enable --now nftables
 
    local nic_name="$(ip route show | grep default | sed -n 's/.*dev \([^\ ]*\).*/\1/p')"
