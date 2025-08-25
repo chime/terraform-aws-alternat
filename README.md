@@ -34,11 +34,11 @@ Features:
 
 * Self-provisioned NAT instances in Auto Scaling Groups
 * Standby NAT Gateways with health checks and automated failover, facilitated by a Lambda function
+* Failback to the NAT instance upon recovery (optional)
 * Vanilla Amazon Linux 2023 AMI (no AMI management requirement)
 * Optional use of SSM for connecting to the NAT instances
 * Max instance lifetimes (no long-lived instances!) with automated failover
 * A Terraform module to set everything up
-* Compatibility with the default naming convention used by the open source [terraform-aws-vpc Terraform module](https://github.com/terraform-aws-modules/terraform-aws-vpc/blob/master/variables.tf)
 
 Read on to learn more about alterNAT.
 
