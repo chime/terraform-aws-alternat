@@ -39,7 +39,7 @@ locals {
   vpc_az_maps = [
     for index, rt in module.vpc.private_route_table_ids
     : {
-      az               = data.aws_subnet.subnet[index].availability_zone
+      az               = local.azs[index]
       route_table_ids  = [rt]
       public_subnet_id = module.vpc.public_subnets[index]
       # The secondary subnets do not need to be included here. this data is
