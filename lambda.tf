@@ -88,7 +88,7 @@ data "aws_iam_policy_document" "alternat_lambda_permissions" {
     ]
     resources = [
       for route_table in local.all_route_tables
-      : "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.id}:route-table/${route_table}"
+      : "arn:aws:ec2:${data.aws_region.current.id}:${data.aws_caller_identity.current.id}:route-table/${route_table}"
     ]
   }
 }
@@ -227,7 +227,7 @@ data "aws_iam_policy_document" "lambda_ssm_send_command_document" {
     ]
 
     resources = [
-      "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunShellScript",
+      "arn:aws:ssm:${data.aws_region.current.id}::document/AWS-RunShellScript",
     ]
   }
   statement {
@@ -239,7 +239,7 @@ data "aws_iam_policy_document" "lambda_ssm_send_command_document" {
     ]
 
     resources = [
-      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.id}:instance/*"
+      "arn:aws:ec2:${data.aws_region.current.id}:${data.aws_caller_identity.current.id}:instance/*"
     ]
     condition {
       test     = "StringEquals"
