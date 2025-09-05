@@ -152,27 +152,6 @@ resource "aws_iam_role_policy" "alternat_lifecycle_hook" {
   role   = aws_iam_role.alternat_lifecycle_hook.name
 }
 
-
-data "aws_ami" "amazon_linux_2023" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "owner-alias"
-    values = ["amazon"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = [var.architecture]
-  }
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-2023*"]
-  }
-}
-
 data "cloudinit_config" "config" {
   for_each = { for obj in var.vpc_az_maps : obj.az => obj.route_table_ids }
 
@@ -236,7 +215,7 @@ resource "aws_launch_template" "nat_instance_template" {
     name = aws_iam_instance_profile.nat_instance.name
   }
 
-  image_id = var.nat_ami == "" ? data.aws_ami.amazon_linux_2023.id : var.nat_ami
+  image_id = var.nat_ami == "" ? "resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-default-${var.architecture}" : var.nat_ami
 
   instance_type = var.nat_instance_type
 

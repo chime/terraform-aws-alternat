@@ -35,7 +35,7 @@ Features:
 * Self-provisioned NAT instances in Auto Scaling Groups
 * Standby NAT Gateways with health checks and automated failover, facilitated by a Lambda function
 * Failback to the NAT instance upon recovery (optional)
-* Vanilla Amazon Linux 2023 AMI (no AMI management requirement)
+* Always uses the latest vanilla Amazon Linux 2023 AMI (no AMI management requirement)
 * Optional use of SSM for connecting to the NAT instances
 * Max instance lifetimes (no long-lived instances!) with automated failover
 * A Terraform module to set everything up
@@ -242,7 +242,7 @@ AlterNATively, you can remove the NAT Gateways and their EIPs from your existing
 
 - [SSM Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html) is enabled by default. To view NAT connections on an instance, use sessions manager to connect, then run `sudo cat /proc/net/nf_conntrack`. Disable SSM by setting `enable_ssm=false`.
 
-- We intentionally use `most_recent=true` for the Amazon Linux 2 AMI. This helps to ensure that the latest AMI is used in the ASG launch template. If a new AMI is available when you run `terraform apply`, the launch template will be updated with the latest AMI. The new AMI will be launched automatically when the maximum instance lifetime is reached.
+- A new instance will be launched automatically when the maximum instance lifetime is reached using the latest AMI.
 
 - Most of the time, except when the instance is actively being replaced, NAT traffic should be routed through the NAT instance and NOT through the NAT Gateway. You can monitor the logs for the text "Failed connectivity tests! Replacing route" to be alerted to NAT instance failures.
 
