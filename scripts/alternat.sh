@@ -21,6 +21,7 @@ load_config() {
    fi
    validate_var "eip_allocation_ids_csv" "$eip_allocation_ids_csv"
    validate_var "route_table_ids_csv" "$route_table_ids_csv"
+   validate_var "enable_ssm" "$enable_ssm"
 }
 
 validate_var() {
@@ -162,6 +163,19 @@ configure_route_table() {
    done
 }
 
+# install_ssm_agent() installs the SSM agent if enable_ssm is true.
+install_ssm_agent() {
+   if [ "$enable_ssm" = "true" ]; then
+      echo "Installing SSM agent"
+      dnf install -y amazon-ssm-agent && \
+      systemctl enable --now amazon-ssm-agent
+      if [ $? -ne 0 ]; then
+         panic "Unable to install SSM agent"
+      fi
+      echo "SSM agent installed successfully"
+   fi
+}
+
 # alterNAT config file containing inputs needed for initialization
 CONFIG_FILE="/etc/alternat.conf"
 
@@ -190,6 +204,7 @@ INSTANCE_ID=$(CURL_WITH_TOKEN $II_URI | grep instanceId | awk -F\" '{print $4}')
 export AWS_DEFAULT_REGION=$(CURL_WITH_TOKEN $II_URI | grep region | awk -F\" '{print $4}')
 
 echo "Beginning self-managed NAT configuration"
+install_ssm_agent
 configure_nat
 disable_source_dest_check
 associate_eip
