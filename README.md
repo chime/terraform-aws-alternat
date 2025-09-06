@@ -37,6 +37,7 @@ Features:
 * Failback to the NAT instance upon recovery (optional)
 * Always uses the latest vanilla Amazon Linux 2023 AMI (no AMI management requirement)
 * Optional use of SSM for connecting to the NAT instances
+* Optional use of CloudWatch Agent to monitor the NAT instances
 * Max instance lifetimes (no long-lived instances!) with automated failover
 * A Terraform module to set everything up
 
@@ -267,6 +268,9 @@ AlterNATively, you can remove the NAT Gateways and their EIPs from your existing
 
 - If your EIPs are critical, for example if they have been allow listed by third parties, use `prevent_destroy_eips=true` to prevent accidental deletion.
 
+- Monitoring by the [CloudWatch Agent](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Install-CloudWatch-Agent.html) is disabled by default. Enable by setting `enable_cloudwatch_agent=true`. Note that you will incur custom metric charges:
+
+  > Metrics collected by the CloudWatch agent are billed as custom metrics. For more information about CloudWatch metrics pricing, see [Amazon CloudWatch Pricing](https://aws.amazon.com/cloudwatch/pricing/).
 
 ## Contributing
 

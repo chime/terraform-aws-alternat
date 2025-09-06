@@ -22,6 +22,7 @@ load_config() {
    validate_var "eip_allocation_ids_csv" "$eip_allocation_ids_csv"
    validate_var "route_table_ids_csv" "$route_table_ids_csv"
    validate_var "enable_ssm" "$enable_ssm"
+   validate_var "enable_cloudwatch_agent" "$enable_cloudwatch_agent"
 }
 
 validate_var() {
@@ -176,6 +177,19 @@ install_ssm_agent() {
    fi
 }
 
+# install_cloudwatch_agent() installs the CloudWatch Agent if enable_cloudwatch_agent is true.
+install_cloudwatch_agent() {
+   if [ "$enable_cloudwatch_agent" = "true" ]; then
+      echo "Installing CloudWatch agent"
+      dnf install -y amazon-cloudwatch-agent && \
+      systemctl enable --now amazon-cloudwatch-agent
+      if [ $? -ne 0 ]; then
+         panic "Unable to install CloudWatch Agent"
+      fi
+      echo "CloudWatch Agent installed successfully"
+   fi
+}
+
 # alterNAT config file containing inputs needed for initialization
 CONFIG_FILE="/etc/alternat.conf"
 
@@ -209,4 +223,5 @@ configure_nat
 disable_source_dest_check
 associate_eip
 configure_route_table
+install_cloudwatch_agent
 echo "Configuration completed successfully!"

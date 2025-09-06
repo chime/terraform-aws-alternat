@@ -283,3 +283,21 @@ variable "lambda_layer_arns" {
   description = "List of Lambda layers ARN that will be added to functions"
   default     = null
 }
+
+variable "enable_cloudwatch_agent" {
+  description = "Whether to enable CloudWatch Agent on the NAT instances."
+  type        = bool
+  default     = false
+}
+
+variable "cloudwatch_namespace" {
+  description = "The name of the CloudWatch namespace for the CloudWatch Agent"
+  type        = string
+  default     = "alterNAT"
+}
+
+variable "cloudwatch_interfaces" {
+  description = "List of NAT instance interfaces that should be monitored by the CloudWatch Agent"
+  type        = list(string)
+  default     = ["ens5", "ens6"]
+}
