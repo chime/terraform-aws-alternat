@@ -70,7 +70,6 @@ func TestAlternat(t *testing.T) {
 			Vars: map[string]interface{}{
 				"aws_region":            awsRegion,
 				"nat_instance_key_name": awsKeyPair.Name,
-				"enable_cloudwatch_agent": true,
 			},
 		})
 
