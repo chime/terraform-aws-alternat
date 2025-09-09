@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 CWAGENT_CONFIG_DIR="/opt/aws/amazon-cloudwatch-agent/etc"
 CWAGENT_CONFIG_FILE="$CWAGENT_CONFIG_DIR/amazon-cloudwatch-agent.json"
 
@@ -8,6 +9,10 @@ if [ ! -d $CWAGENT_CONFIG_DIR ] || [ ! -w $CWAGENT_CONFIG_DIR ]; then
     exit 1
 fi
 
+# Configuration that aims to report most metrics as provided for managed NAT Gateways.
+#
+# Adapted from the fck-nat project. All credit goes to its original contributors.
+# Original documentation: https://fck-nat.dev/develop/features/#metrics
 cat <<EOF > $CWAGENT_CONFIG_FILE
 {
   "agent": {
