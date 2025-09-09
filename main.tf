@@ -11,6 +11,8 @@ locals {
     }
   ]
 
+  nat_instance_image_id = var.nat_ami == "" ? "resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-default-${var.architecture}" : var.nat_ami
+
   nat_instance_ingress_sgs = concat(var.ingress_security_group_ids, [aws_security_group.nat_lambda.id])
 
   all_route_tables = flatten([
@@ -170,15 +172,28 @@ data "cloudinit_config" "config" {
   part {
     content_type = "text/x-shellscript"
     content = templatefile("${path.module}/alternat.conf.tftpl", {
-      eip_allocation_ids_csv = join(",", local.nat_instance_eip_ids),
-      route_table_ids_csv    = join(",", each.value),
-      enable_ssm             = var.enable_ssm
+      eip_allocation_ids_csv  = join(",", local.nat_instance_eip_ids),
+      route_table_ids_csv     = join(",", each.value),
+      enable_ssm              = var.enable_ssm,
+      enable_cloudwatch_agent = var.enable_cloudwatch_agent
     })
   }
 
   part {
     content_type = "text/x-shellscript"
     content      = file("${path.module}/scripts/alternat.sh")
+  }
+
+  dynamic "part" {
+    for_each = var.enable_cloudwatch_agent != "" ? [1] : []
+
+    content {
+      content_type = "text/x-shellscript"
+      content = templatefile("${path.module}/cwagent.json.tftpl", {
+        cloudwatch_namespace  = var.cloudwatch_namespace,
+        cloudwatch_interfaces = jsonencode(var.cloudwatch_interfaces)
+      })
+    }
   }
 
   dynamic "part" {
@@ -193,6 +208,25 @@ data "cloudinit_config" "config" {
 
 resource "aws_launch_template" "nat_instance_template" {
   for_each = { for obj in var.vpc_az_maps : obj.az => obj.route_table_ids }
+
+  image_id = local.nat_instance_image_id
+
+  # Conditional block device mapping for AL2023 Minimal AMI.
+  # By default the root volume is only 2GB and not enough free space
+  # to safely install and use the CloudWatch Agent.
+  dynamic "block_device_mappings" {
+    for_each = (try(strcontains(local.nat_instance_image_id, "al2023-ami-minimal"), false) && var.enable_cloudwatch_agent) ? [1] : []
+
+    content {
+      device_name = "/dev/xvda"
+
+      ebs {
+        volume_size = 3
+        volume_type = "gp3"
+        encrypted   = true
+      }
+    }
+  }
 
   dynamic "block_device_mappings" {
     for_each = try(var.nat_instance_block_devices, {})
@@ -215,8 +249,6 @@ resource "aws_launch_template" "nat_instance_template" {
   iam_instance_profile {
     name = aws_iam_instance_profile.nat_instance.name
   }
-
-  image_id = var.nat_ami == "" ? "resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-default-${var.architecture}" : var.nat_ami
 
   instance_type = var.nat_instance_type
 
@@ -343,6 +375,12 @@ resource "aws_iam_role_policy_attachment" "ssm" {
   count      = var.enable_ssm ? 1 : 0
   role       = aws_iam_role.alternat_instance.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_role_policy_attachment" "cloudwatch" {
+  count      = var.enable_cloudwatch_agent ? 1 : 0
+  role       = aws_iam_role.alternat_instance.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
 data "aws_iam_policy_document" "alternat_ec2_policy" {

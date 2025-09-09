@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+CWAGENT_CONFIG_DIR="/opt/aws/amazon-cloudwatch-agent/etc"
+CWAGENT_CONFIG_FILE="$CWAGENT_CONFIG_DIR/amazon-cloudwatch-agent.json"
+
+# Check if parent directory exists and is writable
+if [ ! -d $CWAGENT_CONFIG_DIR ] || [ ! -w $CWAGENT_CONFIG_DIR ]; then
+    echo "Error: Directory $CWAGENT_CONFIG_DIR does not exist or is not writable"
+    exit 1
+fi
+
+# Configuration that aims to report most metrics as provided for managed NAT Gateways.
+#
+# Adapted from the fck-nat project. All credit goes to its original contributors.
+# Original documentation: https://fck-nat.dev/develop/features/#metrics
+cat <<EOF > $CWAGENT_CONFIG_FILE
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "root",
+    "usage_data": false
+  },
+  "metrics": {
+    "namespace": "${cloudwatch_namespace}",
+    "metrics_collected": {
+      "net": {
+        "resources": ${cloudwatch_interfaces},
+        "measurement": [
+          { "name": "bytes_recv", "rename": "BytesIn",  "unit": "Bytes" },
+          { "name": "bytes_sent", "rename": "BytesOut",  "unit": "Bytes" },
+          { "name": "packets_sent", "rename": "PacketsOutCount",  "unit": "Count" },
+          { "name": "packets_recv", "rename": "PacketsInCount",  "unit": "Count" },
+          { "name": "drop_in", "rename": "PacketsDropInCount",  "unit": "Count" },
+          { "name": "drop_out", "rename": "PacketsDropOutCount",  "unit": "Count" }
+        ]
+      },
+      "netstat": {
+        "measurement": [
+          { "name": "tcp_syn_sent", "rename": "ConnectionAttemptOutCount",  "unit": "Count" },
+          { "name": "tcp_syn_recv", "rename": "ConnectionAttemptInCount",  "unit": "Count" },
+          { "name": "tcp_established", "rename": "ConnectionEstablishedCount",  "unit": "Count" }
+        ]
+      },
+      "ethtool": {
+        "interface_include": ${cloudwatch_interfaces},
+        "metrics_include": [
+          "bw_in_allowance_exceeded",
+          "bw_out_allowance_exceeded",
+          "conntrack_allowance_exceeded",
+          "pps_allowance_exceeded"
+        ]
+      },
+      "mem": {
+        "measurement": [
+          { "name": "used_percent", "rename": "MemoryUsed",  "unit": "Percent" }
+        ]
+      }
+    },
+    "append_dimensions": {
+      "InstanceId": "\$${aws:InstanceId}",
+      "AutoScalingGroupName": "\$${aws:AutoScalingGroupName}"
+    }
+  }
+}
+EOF
+
+systemctl restart amazon-cloudwatch-agent

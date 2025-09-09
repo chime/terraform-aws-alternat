@@ -75,3 +75,9 @@ variable "vpc_name" {
   type        = string
   default     = "alternat-example"
 }
+
+variable "enable_cloudwatch_agent" {
+  description = "Whether to enable CloudWatch Agent on the NAT instances."
+  type        = bool
+  default     = true
+}
