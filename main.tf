@@ -209,6 +209,8 @@ data "cloudinit_config" "config" {
 resource "aws_launch_template" "nat_instance_template" {
   for_each = { for obj in var.vpc_az_maps : obj.az => obj.route_table_ids }
 
+  name_prefix = var.nat_instance_name_prefix
+
   image_id = local.nat_instance_image_id
 
   # Conditional block device mapping for AL2023 Minimal AMI.
