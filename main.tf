@@ -185,7 +185,7 @@ data "cloudinit_config" "config" {
   }
 
   dynamic "part" {
-    for_each = var.enable_cloudwatch_agent != "" ? [1] : []
+    for_each = var.enable_cloudwatch_agent ? [1] : []
 
     content {
       content_type = "text/x-shellscript"
