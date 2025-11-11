@@ -10,7 +10,10 @@ import orjson
 import botocore
 import boto3
 
+from pythonjsonlogger.json import JsonFormatter
+
 slogger = structlog.get_logger()
+
 # use structlog's production-ready, performant example config
 # ref: https://www.structlog.org/en/stable/performance.html#example
 structlog.configure(
@@ -31,6 +34,12 @@ structlog.configure(
 logger = logging.getLogger()
 logging.getLogger('boto3').setLevel(logging.CRITICAL)
 logging.getLogger('botocore').setLevel(logging.CRITICAL)
+
+# set the formatter for standard library logging used in dependencies to JSON
+log_handler = logging.StreamHandler()
+log_handler.setFormatter(JsonFormatter())
+logging.getLogger('boto3').addHandler(log_handler)
+logging.getLogger('botocore').addHandler(log_handler)
 
 ec2_client = boto3.client("ec2")
 
