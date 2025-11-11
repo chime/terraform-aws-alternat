@@ -162,7 +162,7 @@ def replace_route(route_table_id, target_id):
     }
 
     try:
-        slogger.info("Replacing existing route %s for route table %s", route_table_id, new_route_table)
+        slogger.info("Updating route table %s to use NAT target %s", route_table_id, target_id)
         ec2_client.replace_route(**new_route_table)
     except botocore.exceptions.ClientError as error:
         slogger.error("Unable to replace route")
