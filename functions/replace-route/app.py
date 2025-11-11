@@ -14,8 +14,8 @@ from pythonjsonlogger.json import JsonFormatter
 
 slogger = structlog.get_logger()
 
-# use structlog's production-ready, performant example config
-# ref: https://www.structlog.org/en/stable/performance.html#example
+# Use structlog's production-ready, performant example config
+# Ref: https://www.structlog.org/en/stable/performance.html#example
 structlog.configure(
     cache_logger_on_first_use=True,
     wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
@@ -30,12 +30,12 @@ structlog.configure(
     logger_factory=structlog.BytesLoggerFactory()
 )
 
-# logger is still needed to set the level for dependencies
+# Logger is still needed to set the level for dependencies
 logger = logging.getLogger()
 logging.getLogger('boto3').setLevel(logging.CRITICAL)
 logging.getLogger('botocore').setLevel(logging.CRITICAL)
 
-# set the formatter for standard library logging used in dependencies to JSON
+# Set the formatter for standard library logging used in dependencies to JSON
 log_handler = logging.StreamHandler()
 log_handler.setFormatter(JsonFormatter())
 logging.getLogger('boto3').addHandler(log_handler)
