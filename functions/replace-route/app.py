@@ -12,6 +12,7 @@ import boto3
 
 from pythonjsonlogger.json import JsonFormatter
 
+# Initialize a common logger for structlog to reduce repeated fully-qualified calls
 slogger = structlog.get_logger()
 
 # Use structlog's production-ready, performant example config
