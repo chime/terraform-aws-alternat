@@ -229,6 +229,26 @@ If you are using the open source terraform-aws-vpc module, you can set `nat_gate
 
 AlterNATively, you can remove the NAT Gateways and their EIPs from your existing configuration and then `terraform import` them to allow alterNAT to manage them.
 
+#### Providing explicit Elastic IPs for fallback NAT Gateways
+
+Starting with this version, you can optionally supply your own Elastic IP allocation IDs for **fallback NAT Gateways** instead of letting alterNAT create them automatically.
+
+This is useful if you already have pre-allocated EIPs (for example, allow-listed IPs) that must be reused by the fallback NAT Gateways.
+
+```hcl
+fallback_nat_eip_allocation_ids = {
+  "eu-west-1a" = "eipalloc-0123456789abcdef0"
+  "eu-west-1b" = "eipalloc-1111222233334444"
+}
+```
+When an allocation ID is provided for an Availability Zone:
+- The module will not create a new aws_eip resource for that zone.
+- The corresponding NAT Gateway will use the specified allocation ID.
+- All other zones (without explicit IDs) will behave as before — alterNAT will create EIPs automatically or reuse protected ones.
+
+If you provide explicit EIPs for all zones, no new aws_eip.nat_gateway_eips resources will be created.
+
+
 ### Other Considerations
 
 - Read [the Amazon EC2 instance network bandwidth page](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-network-bandwidth.html) carefully. In particular:
