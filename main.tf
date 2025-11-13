@@ -40,6 +40,18 @@ locals {
   nat_instance_eip_ids    = local.reuse_nat_instance_eips ? var.nat_instance_eip_ids : (var.prevent_destroy_eips ? aws_eip.protected_nat_instance_eips[*].id : aws_eip.nat_instance_eips[*].id)
   nat_instance_eips       = var.prevent_destroy_eips ? aws_eip.protected_nat_instance_eips : aws_eip.nat_instance_eips
   nat_gateway_eips        = var.prevent_destroy_eips ? aws_eip.protected_nat_gateway_eips : aws_eip.nat_gateway_eips
+
+  created_ngw_eip_alloc_ids   = try({ for az, e in aws_eip.nat_gateway_eips : az => e.id }, {})
+  protected_ngw_eip_alloc_ids = try({ for az, e in aws_eip.protected_nat_gateway_eips : az => e.id }, {})
+  explicit_ngw_eip_alloc_ids  = var.fallback_ngw_eip_allocation_ids
+
+  # NAT Gateway EIP allocation IDs to use for fallback routes
+  # Explicit preferred, then protected, then created
+  ngw_alloc_ids = merge(
+    local.created_ngw_eip_alloc_ids,
+    local.protected_ngw_eip_alloc_ids,
+    local.explicit_ngw_eip_alloc_ids
+  )
 }
 
 resource "aws_eip" "protected_nat_instance_eips" {
@@ -457,7 +469,7 @@ resource "aws_eip" "protected_nat_gateway_eips" {
   for_each = {
     for obj in var.vpc_az_maps
     : obj.az => obj.public_subnet_id
-    if var.create_nat_gateways && var.prevent_destroy_eips
+    if var.create_nat_gateways && var.prevent_destroy_eips && !contains(keys(var.fallback_ngw_eip_allocation_ids), obj.az)
   }
   tags = merge(var.tags, {
     "Name" = "alternat-gateway-eip"
@@ -471,7 +483,7 @@ resource "aws_eip" "nat_gateway_eips" {
   for_each = {
     for obj in var.vpc_az_maps
     : obj.az => obj.public_subnet_id
-    if var.create_nat_gateways && !var.prevent_destroy_eips
+    if var.create_nat_gateways && !var.prevent_destroy_eips && !contains(keys(var.fallback_ngw_eip_allocation_ids), obj.az)
   }
   tags = merge(var.tags, {
     "Name" = "alternat-gateway-eip"
@@ -484,7 +496,7 @@ resource "aws_nat_gateway" "main" {
     : obj.az => obj.public_subnet_id
     if var.create_nat_gateways
   }
-  allocation_id = var.prevent_destroy_eips ? aws_eip.protected_nat_gateway_eips[each.key].id : aws_eip.nat_gateway_eips[each.key].id
+  allocation_id = local.ngw_alloc_ids[each.key]
   subnet_id     = each.value
   tags = merge(var.tags, {
     Name = "alternat-${each.key}"

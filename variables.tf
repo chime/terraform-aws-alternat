@@ -173,6 +173,16 @@ variable "nat_instance_eip_ids" {
   default     = []
 }
 
+variable "fallback_ngw_eip_allocation_ids" {
+  type        = map(string)
+  default     = {}
+  description = "Explicitly specified allocation_ids for fallback NAT Gateway by AZ (e.g., { eu-west-1a = \"eipalloc-0123456789abcdef0\" }). If specified for an AZ, the EIP will not be created automatically."
+  validation {
+    condition     = alltrue([for v in values(var.fallback_nat_eip_allocation_ids) : can(regex("^eipalloc-[0-9a-f]+$", v))])
+    error_message = "Each allocation_id must be in the format eipalloc-xxxxxxxxxxxxxxx (hex)."
+  }
+}
+
 variable "nat_instance_user_data_pre_install" {
   description = "Pre-install shell script to run at boot before configuring alternat."
   type        = string
