@@ -178,7 +178,7 @@ variable "fallback_ngw_eip_allocation_ids" {
   default     = {}
   description = "Explicitly specified allocation_ids for fallback NAT Gateway by AZ (e.g., { eu-west-1a = \"eipalloc-0123456789abcdef0\" }). If specified for an AZ, the EIP will not be created automatically."
   validation {
-    condition     = alltrue([for v in values(var.fallback_nat_eip_allocation_ids) : can(regex("^eipalloc-[0-9a-f]+$", v))])
+    condition     = alltrue([for v in values(var.fallback_ngw_eip_allocation_ids) : can(regex("^eipalloc-[0-9a-f]+$", v))])
     error_message = "Each allocation_id must be in the format eipalloc-xxxxxxxxxxxxxxx (hex)."
   }
 }
