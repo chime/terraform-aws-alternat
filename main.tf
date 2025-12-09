@@ -10,6 +10,7 @@ locals {
       role_arn                = aws_iam_role.alternat_lifecycle_hook.arn
     }
   ]
+  launch_script_lifecycle_hook_name = "NATInstanceLaunchScript"
 
   nat_instance_image_id = var.nat_ami == "" ? "resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-default-${var.architecture}" : var.nat_ami
 
@@ -112,6 +113,17 @@ resource "aws_autoscaling_group" "nat_instance" {
       propagate_at_launch = true
     }
   }
+}
+
+resource "aws_autoscaling_lifecycle_hook" "nat_instance_launch_script" {
+  for_each = toset([for obj in var.vpc_az_maps : obj.az])
+
+  autoscaling_group_name = aws_autoscaling_group.nat_instance[each.key].name
+
+  name                 = local.launch_script_lifecycle_hook_name
+  default_result       = "ABANDON"
+  heartbeat_timeout    = 900
+  lifecycle_transition = "autoscaling:EC2_INSTANCE_LAUNCHING"
 }
 
 resource "aws_iam_role" "alternat_lifecycle_hook" {
@@ -428,13 +440,22 @@ data "aws_iam_policy_document" "alternat_ec2_policy" {
   statement {
     sid    = "alterNATEIPPermissions"
     effect = "Allow"
-
     actions = [
       "ec2:DescribeAddresses",
       "ec2:AssociateAddress"
     ]
-
     resources = ["*"]
+  }
+
+  statement {
+    sid    = "alterNATASGLifecyclePermissions"
+    effect = "Allow"
+    actions = [
+      "autoscaling:CompleteLifecycleAction",
+    ]
+    resources = [
+      "arn:aws:autoscaling:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:autoScalingGroup:*:autoScalingGroupName/${var.nat_instance_name_prefix}*",
+    ]
   }
 }
 
