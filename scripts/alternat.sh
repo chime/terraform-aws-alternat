@@ -37,7 +37,7 @@ validate_var() {
 # configure_nat() sets up Linux to act as a NAT device.
 # See https://docs.aws.amazon.com/vpc/latest/userguide/VPC_NAT_Instance.html#NATInstance
 configure_nat() {
-   dnf -y install nftables conntrack-tools
+   $dnf_cmd install nftables
    systemctl enable --now nftables
 
    local nic_name="$(ip route show | grep default | sed -n 's/.*dev \([^\ ]*\).*/\1/p')"
@@ -168,7 +168,7 @@ configure_route_table() {
 install_ssm_agent() {
    if [ "$enable_ssm" = "true" ]; then
       echo "Installing SSM agent"
-      dnf install -y amazon-ssm-agent && \
+      $dnf_cmd install amazon-ssm-agent && \
       systemctl enable --now amazon-ssm-agent
       if [ $? -ne 0 ]; then
          panic "Unable to install SSM agent"
@@ -181,7 +181,7 @@ install_ssm_agent() {
 install_cloudwatch_agent() {
    if [ "$enable_cloudwatch_agent" = "true" ]; then
       echo "Installing CloudWatch agent"
-      dnf install -y amazon-cloudwatch-agent && \
+      $dnf_cmd install amazon-cloudwatch-agent && \
       systemctl enable --now amazon-cloudwatch-agent
       if [ $? -ne 0 ]; then
          panic "Unable to install CloudWatch Agent"
@@ -196,6 +196,7 @@ CONFIG_FILE="/etc/alternat.conf"
 load_config
 
 curl_cmd="curl --silent --fail"
+dnf_cmd="dnf --quiet --assumeyes"
 
 echo "Requesting IMDSv2 token"
 token=$($curl_cmd -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 900")
