@@ -100,6 +100,8 @@ resource "aws_autoscaling_group" "nat_instance" {
     }
   }
 
+  health_check_grace_period = var.enable_launch_script_lifecycle_hook ? 0 : 300
+
   dynamic "tag" {
     for_each = merge(
       var.tags,
