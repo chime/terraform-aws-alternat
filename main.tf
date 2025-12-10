@@ -116,7 +116,7 @@ resource "aws_autoscaling_group" "nat_instance" {
 }
 
 resource "aws_autoscaling_lifecycle_hook" "nat_instance_launch_script" {
-  for_each = toset([for obj in var.vpc_az_maps : obj.az])
+  for_each = var.enable_launch_script_lifecycle_hook ? toset([for obj in var.vpc_az_maps : obj.az]) : []
 
   autoscaling_group_name = aws_autoscaling_group.nat_instance[each.key].name
 
