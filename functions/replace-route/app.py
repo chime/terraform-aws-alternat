@@ -20,6 +20,7 @@ ec2_client = boto3.client("ec2")
 LIFECYCLE_HOOK_NAME_KEY = "LifecycleHookName"
 AUTO_SCALING_GROUP_NAME_KEY = "AutoScalingGroupName"
 LIFECYCLE_ACTION_TOKEN_KEY = "LifecycleActionToken"
+EC2_INSTANCE_ID_KEY = "EC2InstanceId"
 
 # Checks every CONNECTIVITY_CHECK_INTERVAL seconds, exits after 1 minute
 DEFAULT_CONNECTIVITY_CHECK_INTERVAL = "5"
@@ -209,15 +210,25 @@ def is_source_dest_check_enabled(instance_id):
         logger.error(f"Error checking source/dest check: {e}")
         return None
 
+
+def find_default_routes(route_table_ids):
+    routes = [None for _ in route_table_ids]
+    response = ec2_client.describe_route_tables(RouteTableIds=route_table_ids)
+    for route_table in response["RouteTables"]:
+        for route in route_table["Routes"]:
+            if route.get("DestinationCidrBlock") == "0.0.0.0/0":
+                idx = route_table_ids.index(route_table["RouteTableId"])
+                routes[idx] = route
+                break
+    return routes
+
+
 def are_any_routes_pointing_to_nat_gateway(route_table_ids):
-    ec2 = boto3.client('ec2')
     try:
-        response = ec2.describe_route_tables(RouteTableIds=route_table_ids)
-        for rtb in response.get('RouteTables', []):
-            for route in rtb.get('Routes', []):
-                if route.get('DestinationCidrBlock') == "0.0.0.0/0" and 'NatGatewayId' in route and route.get('State') == 'active':
-                    return True
-        return False
+        default_routes = find_default_routes(route_table_ids)
+        return any(
+            route is not None and "NatGatewayId" in route for route in default_routes
+        )
     except Exception as e:
         logger.error(f"Error checking NAT Gateway routes: {e}")
         return False
@@ -414,10 +425,12 @@ def handler(event, _):
             if (
                 LIFECYCLE_HOOK_NAME_KEY in message
                 and AUTO_SCALING_GROUP_NAME_KEY in message
+                and EC2_INSTANCE_ID_KEY in message
             ):
                 asg = message[AUTO_SCALING_GROUP_NAME_KEY]
                 lifecycle_hook_name = message[LIFECYCLE_HOOK_NAME_KEY]
                 lifecycle_action_token = message[LIFECYCLE_ACTION_TOKEN_KEY]
+                instance_id = message[EC2_INSTANCE_ID_KEY]
             else:
                 logger.error("Failed to find lifecycle message to parse")
                 raise LifecycleMessageError
@@ -428,16 +441,21 @@ def handler(event, _):
     availability_zone, vpc_zone_identifier = get_az_and_vpc_zone_identifier(asg)
     public_subnet_id = vpc_zone_identifier.split(",")[0]
     az = availability_zone.upper().replace("-", "_")
-    route_tables = az in os.environ and os.getenv(az).split(",")
-    if not route_tables:
+    route_table_ids = az in os.environ and os.getenv(az).split(",")
+    if not route_table_ids:
         raise MissingEnvironmentVariableError
-    vpc_id = get_vpc_id(route_tables[0])
+
+    vpc_id = get_vpc_id(route_table_ids[0])
 
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
 
-    for rtb in route_tables:
-        replace_route(rtb, nat_gateway_id)
-        logger.info("Route replacement succeeded")
+    default_routes = find_default_routes(route_table_ids)
+    for route_table_id, route in zip(route_table_ids, default_routes):
+        if route is not None and route.get("InstanceId") == instance_id:
+            replace_route(route_table_id, nat_gateway_id)
+            logger.info("Route replacement succeeded")
+        else:
+            logger.info("Skipping route replacement in table %s", route_table_id)
 
     complete_asg_lifecycle_action(
         asg, lifecycle_hook_name, lifecycle_action_token, "CONTINUE"

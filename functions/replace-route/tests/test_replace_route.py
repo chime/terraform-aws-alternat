@@ -39,19 +39,16 @@ def setup_networking():
         CidrBlock="10.1.1.0/24",
         AvailabilityZone=f"{az}"
     )
-
     private_subnet = ec2.create_subnet(
         VpcId=vpc.id,
         CidrBlock="10.1.2.0/24",
         AvailabilityZone=f"{az}",
     )
-
     private_subnet_two = ec2.create_subnet(
         VpcId=vpc.id,
         CidrBlock="10.1.3.0/24",
         AvailabilityZone=f"{az}",
     )
-
 
     route_table = ec2.create_route_table(VpcId=vpc.id)
     route_table_two = ec2.create_route_table(VpcId=vpc.id)
@@ -64,16 +61,33 @@ def setup_networking():
         AllocationId=allocation_id
     )["NatGateway"]["NatGatewayId"]
 
-    eni = ec2_client.create_network_interface(
-        SubnetId=public_subnet.id, PrivateIpAddress="10.1.1.5"
+    launch_template = ec2_client.create_launch_template(
+        LaunchTemplateName="test_launch_template",
+        LaunchTemplateData={"ImageId": EXAMPLE_AMI_ID, "InstanceType": "t2.micro"},
+    )["LaunchTemplate"]
+
+    autoscaling_client = boto3.client("autoscaling")
+    autoscaling_client.create_auto_scaling_group(
+        AutoScalingGroupName="alternat-asg",
+        VPCZoneIdentifier=public_subnet.id,
+        MinSize=1,
+        MaxSize=1,
+        LaunchTemplate={
+            "LaunchTemplateId": launch_template["LaunchTemplateId"],
+            "Version": str(launch_template["LatestVersionNumber"]),
+        },
     )
+
+    reservations = ec2_client.describe_instances()["Reservations"]
+    instance_id = reservations[0]["Instances"][0]["InstanceId"]
+
     ec2_client.associate_route_table(
         RouteTableId=route_table.id,
         SubnetId=private_subnet.id
     )
     ec2_client.create_route(
         DestinationCidrBlock="0.0.0.0/0",
-        NetworkInterfaceId=eni["NetworkInterface"]["NetworkInterfaceId"],
+        InstanceId=instance_id,
         RouteTableId=route_table.id
     )
     ec2_client.associate_route_table(
@@ -82,19 +96,16 @@ def setup_networking():
     )
     ec2_client.create_route(
         DestinationCidrBlock="0.0.0.0/0",
-        NetworkInterfaceId=eni["NetworkInterface"]["NetworkInterfaceId"],
+        InstanceId=instance_id,
         RouteTableId=route_table_two.id
     )
 
     return {
-        "vpc": vpc.id,
         "public_subnet": public_subnet.id,
-        "private_subnet": private_subnet.id,
-        "private_subnet_two": private_subnet_two.id,
         "nat_gw": nat_gw_id,
         "route_table": route_table.id,
         "route_table_two": route_table_two.id,
-        "sg": sg.id,
+        "instance": instance_id,
     }
 
 
@@ -135,29 +146,12 @@ def verify_nat_instance_route(mocked_networking, instance_id):
 @mock_aws
 def test_handler(monkeypatch):
     mocked_networking = setup_networking()
-    ec2_client = boto3.client("ec2")
-    template = ec2_client.create_launch_template(
-        LaunchTemplateName="test_launch_template",
-        LaunchTemplateData={"ImageId": EXAMPLE_AMI_ID, "InstanceType": "t2.micro"},
-    )["LaunchTemplate"]
-
-    autoscaling_client = boto3.client("autoscaling")
-    autoscaling_client.create_auto_scaling_group(
-        AutoScalingGroupName="alternat-asg",
-        VPCZoneIdentifier=mocked_networking["public_subnet"],
-        MinSize=1,
-        MaxSize=1,
-        LaunchTemplate={
-            "LaunchTemplateId": template["LaunchTemplateId"],
-            "Version": str(template["LatestVersionNumber"]),
-        },
-    )
 
     from app import handler
 
     script_dir = os.path.dirname(__file__)
     with open(os.path.join(script_dir, "../sns-event.json"), "r") as file:
-        asg_termination_event = file.read()
+        asg_termination_event = json.loads(file.read())
 
     az = f"{os.environ['AWS_DEFAULT_REGION']}a".upper().replace("-", "_")
     monkeypatch.setenv(az, ",".join([mocked_networking["route_table"],mocked_networking["route_table_two"]]))
@@ -169,10 +163,20 @@ def test_handler(monkeypatch):
         if operation_name == "CompleteLifecycleAction":
             return mock_complete_lifecycle_action(self, operation_name, kwarg)
         return orig_make_api_call(self, operation_name, kwarg)
-    with mock.patch("botocore.client.BaseClient._make_api_call", new=mock_make_api_call):
-        handler(json.loads(asg_termination_event), {})
-        mock_complete_lifecycle_action.assert_called_once()
 
+    with mock.patch("botocore.client.BaseClient._make_api_call", new=mock_make_api_call):
+        handler(asg_termination_event, {})
+        mock_complete_lifecycle_action.assert_called_once()
+    verify_nat_instance_route(mocked_networking, mocked_networking["instance"])
+
+    sns_message = json.loads(asg_termination_event["Records"][0]["Sns"]["Message"])
+    sns_message["EC2InstanceId"] = mocked_networking["instance"]
+    asg_termination_event["Records"][0]["Sns"]["Message"] = json.dumps(sns_message)
+
+    mock_complete_lifecycle_action.reset_mock()
+    with mock.patch("botocore.client.BaseClient._make_api_call", new=mock_make_api_call):
+        handler(asg_termination_event, {})
+        mock_complete_lifecycle_action.assert_called_once()
     verify_nat_gateway_route(mocked_networking)
 
 
