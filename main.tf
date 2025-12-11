@@ -114,6 +114,11 @@ resource "aws_autoscaling_group" "nat_instance" {
 
   health_check_grace_period = var.enable_launch_script_lifecycle_hook ? 0 : 300
 
+  instance_maintenance_policy {
+    min_healthy_percentage = var.allow_launch_before_terminating ? 100 : 0
+    max_healthy_percentage = var.allow_launch_before_terminating ? 200 : 100
+  }
+
   dynamic "tag" {
     for_each = merge(
       var.tags,

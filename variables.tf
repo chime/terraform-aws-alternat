@@ -317,3 +317,9 @@ variable "enable_launch_script_lifecycle_hook" {
   type        = bool
   default     = false
 }
+
+variable "allow_launch_before_terminating" {
+  description = "Whether to allow the ASG to launch new instances before terminating others."
+  type        = bool
+  default     = false
+}
