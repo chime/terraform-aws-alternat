@@ -5,3 +5,10 @@
 **/.terraform*
 **/.test-data
 .idea
+# personal shit
+.venv
+devbox.json
+devbox.lock
+.devbox
+.envrc
+/functions/replace-route/setup

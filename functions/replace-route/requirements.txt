@@ -1,1 +1,4 @@
 boto3==1.34.90
+structlog==25.5.0
+orjson==3.11.4
+python-json-logger==4.0.0
