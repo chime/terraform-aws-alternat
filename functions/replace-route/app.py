@@ -17,9 +17,11 @@ logging.getLogger('botocore').setLevel(logging.CRITICAL)
 
 ec2_client = boto3.client("ec2")
 
-LIFECYCLE_KEY = "LifecycleHookName"
-ASG_KEY = "AutoScalingGroupName"
-EC2_KEY = "EC2InstanceId"
+LIFECYCLE_HOOK_NAME_KEY = "LifecycleHookName"
+AUTO_SCALING_GROUP_NAME_KEY = "AutoScalingGroupName"
+EC2_INSTANCE_ID_KEY = "EC2InstanceId"
+
+NAT_GATEWAY_ID_PREFIX = "nat-"
 
 # Checks every CONNECTIVITY_CHECK_INTERVAL seconds, exits after 1 minute
 DEFAULT_CONNECTIVITY_CHECK_INTERVAL = "5"
@@ -209,15 +211,30 @@ def is_source_dest_check_enabled(instance_id):
         logger.error(f"Error checking source/dest check: {e}")
         return None
 
+
+def get_known_route_table_targets(route_table_ids):
+    targets = [None for _ in route_table_ids]
+    response = ec2_client.describe_route_tables(RouteTableIds=route_table_ids)
+    for idx, route_table in enumerate(response.get("RouteTables")):
+        for route in route_table.get("Routes"):
+            if (
+                route.get("DestinationCidrBlock") == "0.0.0.0/0"
+                and route.get("State") == "active"
+            ):
+                if "NatGatewayId" in route:
+                    targets[idx] = route["NatGatewayId"]
+                elif "InstanceId" in route:
+                    targets[idx] = route["InstanceId"]
+    return targets
+
+
 def are_any_routes_pointing_to_nat_gateway(route_table_ids):
     ec2 = boto3.client('ec2')
     try:
-        response = ec2.describe_route_tables(RouteTableIds=route_table_ids)
-        for rtb in response.get('RouteTables', []):
-            for route in rtb.get('Routes', []):
-                if route.get('DestinationCidrBlock') == "0.0.0.0/0" and 'NatGatewayId' in route and route.get('State') == 'active':
-                    return True
-        return False
+        targets = get_known_route_table_targets(route_table_ids)
+        return any(
+            target and target.startswith(NAT_GATEWAY_ID_PREFIX) for target in targets
+        )
     except Exception as e:
         logger.error(f"Error checking NAT Gateway routes: {e}")
         return False
@@ -386,8 +403,13 @@ def handler(event, _):
     try:
         for record in event["Records"]:
             message = json.loads(record["Sns"]["Message"])
-            if LIFECYCLE_KEY in message and ASG_KEY in message:
-                asg = message[ASG_KEY]
+            if (
+                LIFECYCLE_HOOK_NAME_KEY in message
+                and AUTO_SCALING_GROUP_NAME_KEY in message
+                and EC2_INSTANCE_ID_KEY in message
+            ):
+                asg = message[AUTO_SCALING_GROUP_NAME_KEY]
+                instance_id = message[EC2_INSTANCE_ID_KEY]
             else:
                 logger.error("Failed to find lifecycle message to parse")
                 raise LifecycleMessageError
@@ -401,13 +423,19 @@ def handler(event, _):
     route_tables = az in os.environ and os.getenv(az).split(",")
     if not route_tables:
         raise MissingEnvironmentVariableError
+
     vpc_id = get_vpc_id(route_tables[0])
 
     nat_gateway_id = get_nat_gateway_id(vpc_id, public_subnet_id)
 
-    for rtb in route_tables:
-        replace_route(rtb, nat_gateway_id)
-        logger.info("Route replacement succeeded")
+    route_table_targets = get_known_route_table_targets(route_tables)
+
+    for idx, route_table_id in enumerate(route_tables):
+        if route_table_targets[idx] == instance_id:
+            replace_route(route_table_id, nat_gateway_id)
+            logger.info("Route replacement succeeded")
+        else:
+            logger.info("Skipping route replacement in table %s", route_table_id)
 
 
 class UnknownEventTypeError(Exception): pass
