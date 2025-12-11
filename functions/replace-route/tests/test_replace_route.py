@@ -162,7 +162,16 @@ def test_handler(monkeypatch):
     az = f"{os.environ['AWS_DEFAULT_REGION']}a".upper().replace("-", "_")
     monkeypatch.setenv(az, ",".join([mocked_networking["route_table"],mocked_networking["route_table_two"]]))
 
-    handler(json.loads(asg_termination_event), {})
+    # CompleteLifecycleAction is not implemented by Moto
+    orig_make_api_call = botocore.client.BaseClient._make_api_call
+    mock_complete_lifecycle_action = mock.Mock()
+    def mock_make_api_call(self, operation_name, kwarg):
+        if operation_name == "CompleteLifecycleAction":
+            return mock_complete_lifecycle_action(self, operation_name, kwarg)
+        return orig_make_api_call(self, operation_name, kwarg)
+    with mock.patch("botocore.client.BaseClient._make_api_call", new=mock_make_api_call):
+        handler(json.loads(asg_termination_event), {})
+        mock_complete_lifecycle_action.assert_called_once()
 
     verify_nat_gateway_route(mocked_networking)
 

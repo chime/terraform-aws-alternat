@@ -17,9 +17,9 @@ logging.getLogger('botocore').setLevel(logging.CRITICAL)
 
 ec2_client = boto3.client("ec2")
 
-LIFECYCLE_KEY = "LifecycleHookName"
-ASG_KEY = "AutoScalingGroupName"
-EC2_KEY = "EC2InstanceId"
+LIFECYCLE_HOOK_NAME_KEY = "LifecycleHookName"
+AUTO_SCALING_GROUP_NAME_KEY = "AutoScalingGroupName"
+LIFECYCLE_ACTION_TOKEN_KEY = "LifecycleActionToken"
 
 # Checks every CONNECTIVITY_CHECK_INTERVAL seconds, exits after 1 minute
 DEFAULT_CONNECTIVITY_CHECK_INTERVAL = "5"
@@ -386,8 +386,13 @@ def handler(event, _):
     try:
         for record in event["Records"]:
             message = json.loads(record["Sns"]["Message"])
-            if LIFECYCLE_KEY in message and ASG_KEY in message:
-                asg = message[ASG_KEY]
+            if (
+                LIFECYCLE_HOOK_NAME_KEY in message
+                and AUTO_SCALING_GROUP_NAME_KEY in message
+            ):
+                asg = message[AUTO_SCALING_GROUP_NAME_KEY]
+                lifecycle_hook_name = message[LIFECYCLE_HOOK_NAME_KEY]
+                lifecycle_action_token = message[LIFECYCLE_ACTION_TOKEN_KEY]
             else:
                 logger.error("Failed to find lifecycle message to parse")
                 raise LifecycleMessageError
@@ -408,6 +413,14 @@ def handler(event, _):
     for rtb in route_tables:
         replace_route(rtb, nat_gateway_id)
         logger.info("Route replacement succeeded")
+
+    autoscaling_client = boto3.client("autoscaling")
+    autoscaling_client.complete_lifecycle_action(
+        LifecycleHookName=lifecycle_hook_name,
+        AutoScalingGroupName=asg,
+        LifecycleActionToken=lifecycle_action_token,
+        LifecycleActionResult="CONTINUE",
+    )
 
 
 class UnknownEventTypeError(Exception): pass
