@@ -382,6 +382,31 @@ def get_env_bool(var_name, default_value=False):
     return str(value).lower() in true_values
 
 
+def complete_asg_lifecycle_action(
+    auto_scaling_group_name,
+    lifecycle_hook_name,
+    lifecycle_action_token,
+    lifecycle_action_result,
+    ignore_validation_error=True,
+):
+    autoscaling_client = boto3.client("autoscaling")
+    try:
+        autoscaling_client.complete_lifecycle_action(
+            AutoScalingGroupName=auto_scaling_group_name,
+            LifecycleHookName=lifecycle_hook_name,
+            LifecycleActionToken=lifecycle_action_token,
+            LifecycleActionResult=lifecycle_action_result,
+        )
+    except botocore.exceptions.ClientError as error:
+        if (
+            ignore_validation_error
+            and error.response["Error"]["Code"] == "ValidationError"
+        ):
+                return False
+        raise
+    return True
+
+
 def handler(event, _):
     try:
         for record in event["Records"]:
@@ -414,12 +439,8 @@ def handler(event, _):
         replace_route(rtb, nat_gateway_id)
         logger.info("Route replacement succeeded")
 
-    autoscaling_client = boto3.client("autoscaling")
-    autoscaling_client.complete_lifecycle_action(
-        LifecycleHookName=lifecycle_hook_name,
-        AutoScalingGroupName=asg,
-        LifecycleActionToken=lifecycle_action_token,
-        LifecycleActionResult="CONTINUE",
+    complete_asg_lifecycle_action(
+        asg, lifecycle_hook_name, lifecycle_action_token, "CONTINUE"
     )
 
 
