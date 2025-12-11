@@ -301,3 +301,9 @@ variable "cloudwatch_interfaces" {
   type        = list(string)
   default     = ["ens5", "ens6"]
 }
+
+variable "allow_launch_before_terminating" {
+  description = "Whether to allow the ASG to launch new instances before terminating others."
+  type        = bool
+  default     = false
+}
