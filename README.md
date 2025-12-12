@@ -231,7 +231,7 @@ AlterNATively, you can remove the NAT Gateways and their EIPs from your existing
 
 #### Providing explicit Elastic IPs for fallback NAT Gateways
 
-Starting with this version, you can optionally supply your own Elastic IP allocation IDs for **fallback NAT Gateways** instead of letting alterNAT create them automatically.
+You can optionally supply your own Elastic IP allocation IDs for the fallback NAT Gateways instead of letting alterNAT create them automatically.
 
 This is useful if you already have pre-allocated EIPs (for example, allow-listed IPs) that must be reused by the fallback NAT Gateways.
 
