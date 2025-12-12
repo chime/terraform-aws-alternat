@@ -30,6 +30,12 @@ resource "aws_route_table_association" "secondary_subnets" {
   route_table_id = module.vpc.private_route_table_ids[count.index]
 }
 
+resource "aws_eip" "preallocated_eip" {
+  tags = {
+    "Name" = "alternat-example-explicit-eip"
+  }
+}
+
 data "aws_subnet" "subnet" {
   count = length(module.vpc.private_subnets)
   id    = module.vpc.private_subnets[count.index]
@@ -62,9 +68,10 @@ module "alternat" {
 
   lambda_package_type = "Zip"
 
-  nat_instance_type       = var.alternat_instance_type
-  nat_instance_key_name   = var.nat_instance_key_name
-  enable_nat_restore      = var.enable_nat_restore
-  enable_ssm              = var.enable_ssm
-  enable_cloudwatch_agent = var.enable_cloudwatch_agent
+  nat_instance_type               = var.alternat_instance_type
+  nat_instance_key_name           = var.nat_instance_key_name
+  enable_nat_restore              = var.enable_nat_restore
+  enable_ssm                      = var.enable_ssm
+  enable_cloudwatch_agent         = var.enable_cloudwatch_agent
+  fallback_ngw_eip_allocation_ids = { (local.azs[0]) = aws_eip.preallocated_eip.allocation_id }
 }
