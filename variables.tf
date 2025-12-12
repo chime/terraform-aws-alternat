@@ -311,3 +311,9 @@ variable "cloudwatch_interfaces" {
   type        = list(string)
   default     = ["ens5", "ens6"]
 }
+
+variable "enable_launch_script_lifecycle_hook" {
+  description = "Whether to enable the ASG lifecycle hook for the launch script."
+  type        = bool
+  default     = false
+}
