@@ -236,7 +236,7 @@ You can optionally supply your own Elastic IP allocation IDs for the fallback NA
 This is useful if you already have pre-allocated EIPs (for example, allow-listed IPs) that must be reused by the fallback NAT Gateways.
 
 ```hcl
-fallback_nat_eip_allocation_ids = {
+fallback_ngw_eip_allocation_ids = {
   "eu-west-1a" = "eipalloc-0123456789abcdef0"
   "eu-west-1b" = "eipalloc-1111222233334444"
 }
