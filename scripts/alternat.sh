@@ -195,14 +195,12 @@ ASG_LIFECYCLE_HOOK_NAME="NATInstanceLaunchScript"
 complete_asg_lifecycle_action() {
   if [[ -z "$1" ]]; then
     echo "No lifecycle action result given"
-    return 2
   fi
 
   local auto_scaling_group_name
   auto_scaling_group_name="$(ec2-metadata --quiet --tags | grep 'aws:autoscaling:groupName' | awk '{print $2}')"
   if [[ -z "${auto_scaling_group_name}" ]]; then
     echo "Could not detect auto scaling group name"
-    return 2
   fi
 
   local output status
@@ -213,12 +211,11 @@ complete_asg_lifecycle_action() {
     --instance-id "${INSTANCE_ID}" 2>&1)"
   status=$?
   if [[ $status -ne 0 ]]; then
-    if grep -q "No active Lifecycle Action found" <<<"$output"; then
+    if grep -q "No active Lifecycle Action found" <<< "${output}"; then
       echo "Ignoring missing ASG lifecycle action"
-      return 0
     else
+      echo "${output}"
       echo "Failed to complete ASG lifecycle action"
-      return 1
     fi
   fi
 
