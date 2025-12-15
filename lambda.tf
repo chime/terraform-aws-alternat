@@ -91,6 +91,17 @@ data "aws_iam_policy_document" "alternat_lambda_permissions" {
       : "arn:aws:ec2:${data.aws_region.current.id}:${data.aws_caller_identity.current.id}:route-table/${route_table}"
     ]
   }
+
+  statement {
+    sid    = "alterNATASGLifecyclePermissions"
+    effect = "Allow"
+    actions = [
+      "autoscaling:CompleteLifecycleAction",
+    ]
+    resources = [
+      "arn:aws:autoscaling:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:autoScalingGroup:*:autoScalingGroupName/${var.nat_instance_name_prefix}*",
+    ]
+  }
 }
 
 data "aws_iam_policy_document" "nat_lambda_policy" {
