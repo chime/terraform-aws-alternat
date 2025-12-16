@@ -169,6 +169,12 @@ variable "nat_instance_eip_ids" {
   default     = null
 }
 
+variable "nat_instance_spare_eip_count" {
+  description = "The number of spare Elastic IPs to create for the NAT instances."
+  type        = number
+  default     = 0
+}
+
 variable "fallback_ngw_eip_allocation_ids" {
   type        = map(string)
   default     = {}
