@@ -34,12 +34,10 @@ locals {
     : {}
   )
 
-  # Must provide exactly 1 EIP per AZ
-  # var.nat_instance_eip_ids ignored if doesn't match AZ count
-  reuse_nat_instance_eips = length(var.nat_instance_eip_ids) == length(var.vpc_az_maps)
-  nat_instance_eip_ids    = local.reuse_nat_instance_eips ? var.nat_instance_eip_ids : (var.prevent_destroy_eips ? aws_eip.protected_nat_instance_eips[*].id : aws_eip.nat_instance_eips[*].id)
-  nat_instance_eips       = var.prevent_destroy_eips ? aws_eip.protected_nat_instance_eips : aws_eip.nat_instance_eips
-  nat_gateway_eips        = var.prevent_destroy_eips ? aws_eip.protected_nat_gateway_eips : aws_eip.nat_gateway_eips
+  desired_nat_instance_eip_count     = length(var.vpc_az_maps)
+  created_nat_instance_eip_count     = var.nat_instance_eip_ids == null ? local.desired_nat_instance_eip_count : 0
+  created_nat_instance_eip_resources = var.prevent_destroy_eips ? aws_eip.protected_nat_instance_eips : aws_eip.nat_instance_eips
+  nat_instance_eip_ids               = var.nat_instance_eip_ids == null ? local.created_nat_instance_eip_resources[*].id : var.nat_instance_eip_ids
 
   created_ngw_eip_alloc_ids   = try({ for az, e in aws_eip.nat_gateway_eips : az => e.id }, {})
   protected_ngw_eip_alloc_ids = try({ for az, e in aws_eip.protected_nat_gateway_eips : az => e.id }, {})
@@ -52,12 +50,11 @@ locals {
     local.protected_ngw_eip_alloc_ids,
     local.explicit_ngw_eip_alloc_ids
   )
+  created_nat_gateway_eip_resources = var.prevent_destroy_eips ? aws_eip.protected_nat_gateway_eips : aws_eip.nat_gateway_eips
 }
 
 resource "aws_eip" "protected_nat_instance_eips" {
-  count = (local.reuse_nat_instance_eips
-    ? 0
-  : var.prevent_destroy_eips ? length(var.vpc_az_maps) : 0)
+  count = var.prevent_destroy_eips ? local.created_nat_instance_eip_count : 0
 
   tags = merge(var.tags, {
     "Name" = "alternat-instance-${count.index}"
@@ -69,9 +66,7 @@ resource "aws_eip" "protected_nat_instance_eips" {
 }
 
 resource "aws_eip" "nat_instance_eips" {
-  count = (local.reuse_nat_instance_eips
-    ? 0
-  : (var.prevent_destroy_eips ? 0 : length(var.vpc_az_maps)))
+  count = var.prevent_destroy_eips ? 0 : local.created_nat_instance_eip_count
 
   tags = merge(var.tags, {
     "Name" = "alternat-instance-${count.index}"
@@ -122,6 +117,13 @@ resource "aws_autoscaling_group" "nat_instance" {
       key                 = tag.key
       value               = tag.value
       propagate_at_launch = true
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = length(local.nat_instance_eip_ids) >= local.desired_nat_instance_eip_count
+      error_message = "The number of provided NAT instance EIP IDs must be at least ${local.desired_nat_instance_eip_count}."
     }
   }
 }
