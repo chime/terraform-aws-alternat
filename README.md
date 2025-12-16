@@ -272,6 +272,8 @@ AlterNATively, you can remove the NAT Gateways and their EIPs from your existing
 
   > Metrics collected by the CloudWatch agent are billed as custom metrics. For more information about CloudWatch metrics pricing, see [Amazon CloudWatch Pricing](https://aws.amazon.com/cloudwatch/pricing/).
 
+- There is a small risk that the NAT instance launch will fail due to transient errors. With `enable_launch_script_lifecycle_hook` set to true the ASG waits ~15 minutes for the script to complete successfully and starts over with a new instance if necessary.
+
 ## Contributing
 
 [Issues](https://github.com/chime/terraform-aws-alternat/issues) and [pull requests](https://github.com/chime/terraform-aws-alternat/pulls) are most welcome!
