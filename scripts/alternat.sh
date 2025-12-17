@@ -9,6 +9,7 @@ shopt -s expand_aliases
 
 panic() {
   [ -n "$1" ] && echo "$1"
+  complete_asg_lifecycle_action ABANDON
   echo "alterNAT setup failed"
   exit 1
 }
@@ -190,10 +191,36 @@ install_cloudwatch_agent() {
    fi
 }
 
-# alterNAT config file containing inputs needed for initialization
-CONFIG_FILE="/etc/alternat.conf"
+ASG_LIFECYCLE_HOOK_NAME="NATInstanceLaunchScript"
+complete_asg_lifecycle_action() {
+  if [[ -z "$1" ]]; then
+    echo "No lifecycle action result given"
+  fi
 
-load_config
+  local auto_scaling_group_name
+  auto_scaling_group_name="$(ec2-metadata --quiet --tags | grep 'aws:autoscaling:groupName' | awk '{print $2}')"
+  if [[ -z "${auto_scaling_group_name}" ]]; then
+    echo "Could not detect auto scaling group name"
+  fi
+
+  local output status
+  output="$(aws autoscaling complete-lifecycle-action \
+    --lifecycle-hook-name "${ASG_LIFECYCLE_HOOK_NAME}" \
+    --auto-scaling-group-name "${auto_scaling_group_name}" \
+    --lifecycle-action-result "$1" \
+    --instance-id "${INSTANCE_ID}" 2>&1)"
+  status=$?
+  if [[ $status -ne 0 ]]; then
+    if grep -q "No active Lifecycle Action found" <<< "${output}"; then
+      echo "Ignoring missing ASG lifecycle action"
+    else
+      echo "${output}"
+      echo "Failed to complete ASG lifecycle action"
+    fi
+  fi
+
+  echo "Completed ASG lifecycle action with result $1"
+}
 
 curl_cmd="curl --silent --fail"
 dnf_cmd="dnf --quiet --assumeyes"
@@ -218,11 +245,16 @@ INSTANCE_ID=$(CURL_WITH_TOKEN $II_URI | grep instanceId | awk -F\" '{print $4}')
 # Set region of NAT instance
 export AWS_DEFAULT_REGION=$(CURL_WITH_TOKEN $II_URI | grep region | awk -F\" '{print $4}')
 
+# alterNAT config file containing inputs needed for initialization
+CONFIG_FILE="/etc/alternat.conf"
+load_config
+
 echo "Beginning self-managed NAT configuration"
 install_ssm_agent
+install_cloudwatch_agent
 configure_nat
 disable_source_dest_check
 associate_eip
 configure_route_table
-install_cloudwatch_agent
+complete_asg_lifecycle_action CONTINUE
 echo "Configuration completed successfully!"
