@@ -20,6 +20,8 @@ ec2_client = boto3.client("ec2")
 LIFECYCLE_HOOK_NAME_KEY = "LifecycleHookName"
 AUTO_SCALING_GROUP_NAME_KEY = "AutoScalingGroupName"
 LIFECYCLE_ACTION_TOKEN_KEY = "LifecycleActionToken"
+EVENT_KEY = "Event"
+AUTO_SCALING_TEST_NOTIFICATION_VALUE = "autoscaling:TEST_NOTIFICATION"
 
 # Checks every CONNECTIVITY_CHECK_INTERVAL seconds, exits after 1 minute
 DEFAULT_CONNECTIVITY_CHECK_INTERVAL = "5"
@@ -418,6 +420,9 @@ def handler(event, _):
                 asg = message[AUTO_SCALING_GROUP_NAME_KEY]
                 lifecycle_hook_name = message[LIFECYCLE_HOOK_NAME_KEY]
                 lifecycle_action_token = message[LIFECYCLE_ACTION_TOKEN_KEY]
+            elif message.get(EVENT_KEY) == AUTO_SCALING_TEST_NOTIFICATION_VALUE:
+                logger.info("Ignoring test notification event")
+                return
             else:
                 logger.error("Failed to find lifecycle message to parse")
                 raise LifecycleMessageError
