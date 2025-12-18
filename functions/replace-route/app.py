@@ -4,16 +4,43 @@ import logging
 import time
 import urllib
 import socket
+import structlog
+import orjson
 
 import botocore
 import boto3
 
+from pythonjsonlogger.json import JsonFormatter
 
+# Initialize a common logger for structlog to reduce repeated fully-qualified calls
+slogger = structlog.get_logger()
+
+# Use structlog's production-ready, performant example config
+# Ref: https://www.structlog.org/en/stable/performance.html#example
+structlog.configure(
+    cache_logger_on_first_use=True,
+    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.format_exc_info,
+        structlog.processors.TimeStamper(fmt="iso", utc=True),
+        structlog.processors.EventRenamer("message"),
+        structlog.processors.JSONRenderer(serializer=orjson.dumps)
+    ],
+    logger_factory=structlog.BytesLoggerFactory()
+)
+
+# Logger is still needed to set the level for dependencies
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 logging.getLogger('boto3').setLevel(logging.CRITICAL)
 logging.getLogger('botocore').setLevel(logging.CRITICAL)
 
+# Set the formatter for standard library logging used in dependencies to JSON
+log_handler = logging.StreamHandler()
+log_handler.setFormatter(JsonFormatter())
+logging.getLogger('boto3').addHandler(log_handler)
+logging.getLogger('botocore').addHandler(log_handler)
 
 ec2_client = boto3.client("ec2")
 
@@ -57,18 +84,18 @@ def get_az_and_vpc_zone_identifier(auto_scaling_group):
     try:
         asg_objects = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[auto_scaling_group])
     except botocore.exceptions.ClientError as error:
-        logger.error("Unable to describe autoscaling groups")
+        slogger.error("Unable to describe autoscaling groups")
         raise error
 
     if asg_objects["AutoScalingGroups"] and len(asg_objects["AutoScalingGroups"]) > 0:
         asg = asg_objects["AutoScalingGroups"][0]
-        logger.debug("Auto Scaling Group: %s", asg)
+        slogger.debug("Auto Scaling Group: %s", asg)
 
         availability_zone = asg["AvailabilityZones"][0]
-        logger.debug("Availability Zone: %s", availability_zone)
+        slogger.debug("Availability Zone: %s", availability_zone)
 
         vpc_zone_identifier = asg["VPCZoneIdentifier"]
-        logger.debug("VPC zone identifier: %s", vpc_zone_identifier)
+        slogger.debug("VPC zone identifier: %s", vpc_zone_identifier)
 
         return availability_zone, vpc_zone_identifier
 
@@ -79,18 +106,18 @@ def get_vpc_id(route_table):
     try:
         route_tables = ec2_client.describe_route_tables(RouteTableIds=[route_table])
     except botocore.exceptions.ClientError as error:
-        logger.error("Unable to get vpc id")
+        slogger.error("Unable to get vpc id")
         raise error
     if "RouteTables" in route_tables and len(route_tables["RouteTables"]) == 1:
         vpc_id = route_tables["RouteTables"][0]["VpcId"]
-        logger.debug("VPC ID: %s", vpc_id)
+        slogger.debug("VPC ID: %s", vpc_id)
     return vpc_id
 
 
 def get_nat_gateway_id(vpc_id, subnet_id):
     nat_gateway_id = os.getenv("NAT_GATEWAY_ID")
     if nat_gateway_id:
-        logger.info("Using NAT_GATEWAY_ID env. variable (%s)", nat_gateway_id)
+        slogger.info("Using NAT_GATEWAY_ID env. variable (%s)", nat_gateway_id)
         return nat_gateway_id
 
     try:
@@ -111,15 +138,15 @@ def get_nat_gateway_id(vpc_id, subnet_id):
             ]
         )
     except botocore.exceptions.ClientError as error:
-        logger.error("Unable to describe nat gateway")
+        slogger.error("Unable to describe nat gateway")
         raise error
 
-    logger.debug("NAT Gateways: %s", nat_gateways)
+    slogger.debug("NAT Gateways: %s", nat_gateways)
     if len(nat_gateways.get("NatGateways")) < 1:
         raise MissingNatGatewayError(nat_gateways)
 
     nat_gateway_id = nat_gateways['NatGateways'][0]["NatGatewayId"]
-    logger.debug("NAT Gateway ID: %s", nat_gateway_id)
+    slogger.debug("NAT Gateway ID: %s", nat_gateway_id)
     return nat_gateway_id
 
 
@@ -135,10 +162,10 @@ def replace_route(route_table_id, target_id):
     }
 
     try:
-        logger.info("Replacing existing route %s for route table %s", route_table_id, new_route_table)
+        slogger.info("Updating route table %s to use NAT target %s", route_table_id, target_id)
         ec2_client.replace_route(**new_route_table)
     except botocore.exceptions.ClientError as error:
-        logger.error("Unable to replace route")
+        slogger.error("Unable to replace route")
         raise error
 
 def run_nat_instance_diagnostics(instance_id):
@@ -175,28 +202,28 @@ def run_nat_instance_diagnostics(instance_id):
         output = invocation.get('StandardOutputContent', '')
 
         if invocation.get('StandardErrorContent'):
-            logger.warning("NAT instance diagnostic errors:\n%s", invocation['StandardErrorContent'])
+            slogger.warning("NAT instance diagnostic errors:\n%s", invocation['StandardErrorContent'])
 
         # Check conditions
         if "ip_forward=0" in output:
-            logger.warning("NAT instance has ip_forward=0 — IP forwarding is disabled.")
+            slogger.warning("NAT instance has ip_forward=0 — IP forwarding is disabled.")
             return False
 
         if "masquerade" not in output:
-            logger.warning("NAT instance nftables missing 'masquerade' rule — SNAT may be broken.")
+            slogger.warning("NAT instance nftables missing 'masquerade' rule — SNAT may be broken.")
             return False
 
         if is_source_dest_check_enabled(instance_id) is True:
-            logger.warning("Source/destination check is ENABLED — this will break NAT functionality.")
+            slogger.warning("Source/destination check is ENABLED — this will break NAT functionality.")
             return False
         if is_source_dest_check_enabled(instance_id) is None:
-            logger.warning("Skipping NAT restore due to error checking source/dest.")
+            slogger.warning("Skipping NAT restore due to error checking source/dest.")
             return False
 
         return True
 
     except botocore.exceptions.ClientError as e:
-        logger.error("SSM diagnostic command failed: %s", str(e))
+        slogger.error("SSM diagnostic command failed: %s", str(e))
         return False
 
 def is_source_dest_check_enabled(instance_id):
@@ -206,7 +233,7 @@ def is_source_dest_check_enabled(instance_id):
         attr = response['Reservations'][0]['Instances'][0].get('SourceDestCheck', True)
         return attr
     except Exception as e:
-        logger.error(f"Error checking source/dest check: {e}")
+        slogger.error(f"Error checking source/dest check: {e}")
         return None
 
 def are_any_routes_pointing_to_nat_gateway(route_table_ids):
@@ -219,7 +246,7 @@ def are_any_routes_pointing_to_nat_gateway(route_table_ids):
                     return True
         return False
     except Exception as e:
-        logger.error(f"Error checking NAT Gateway routes: {e}")
+        slogger.error(f"Error checking NAT Gateway routes: {e}")
         return False
 
 def attempt_nat_instance_restore():
@@ -228,10 +255,10 @@ def attempt_nat_instance_restore():
     route_tables = os.getenv("ROUTE_TABLE_IDS_CSV", "").split(",")
 
     if not nat_instance_id or not route_tables:
-        logger.warning("NAT_INSTANCE_ID or ROUTE_TABLE_IDS_CSV not set. Skipping NAT restore.")
+        slogger.warning("NAT_INSTANCE_ID or ROUTE_TABLE_IDS_CSV not set. Skipping NAT restore.")
         return
 
-    logger.info("Attempting to restore route to NAT Instance: %s", nat_instance_id)
+    slogger.info("Attempting to restore route to NAT Instance: %s", nat_instance_id)
 
     try:
         check_urls = os.getenv("CHECK_URLS", ",".join(DEFAULT_CHECK_URLS)).split(",")
@@ -261,28 +288,28 @@ def attempt_nat_instance_restore():
             output = invocation['StandardOutputContent'].strip()
             http_codes = output.splitlines()
             if all(int(code) < 500 for code in http_codes):
-                logger.info("NAT instance has Internet access, we can diagnose the NAT configuration.")
+                slogger.info("NAT instance has Internet access, we can diagnose the NAT configuration.")
                 try:
                     if not run_nat_instance_diagnostics(nat_instance_id):
-                        logger.warning("Skipping route restore due to failed NAT diagnostics.")
+                        slogger.warning("Skipping route restore due to failed NAT diagnostics.")
                         return
                 except Exception as diag_error:
-                    logger.error("Unexpected error during NAT diagnostics: %s", str(diag_error))
+                    slogger.error("Unexpected error during NAT diagnostics: %s", str(diag_error))
                     return
                 for rtb in route_tables:
                     replace_route(rtb, nat_instance_id)
-                    logger.info("Route table %s now points to NAT instance %s", rtb, nat_instance_id)
+                    slogger.info("Route table %s now points to NAT instance %s", rtb, nat_instance_id)
                 return
             else:
-                logger.warning("Invocation output: %s", invocation['StandardOutputContent'])
+                slogger.warning("Invocation output: %s", invocation['StandardOutputContent'])
         else:
-            logger.warning("NAT instance connectivity test failed or did not return expected result.")
+            slogger.warning("NAT instance connectivity test failed or did not return expected result.")
 
 
     except botocore.exceptions.ClientError as e:
-        logger.error("SSM command failed: %s", str(e))
+        slogger.error("SSM command failed: %s", str(e))
     except Exception as ex:
-        logger.error("Unexpected error during NAT restore: %s", str(ex))
+        slogger.error("Unexpected error during NAT restore: %s", str(ex))
 
 def check_connection(check_urls):
     """
@@ -301,7 +328,7 @@ def check_connection(check_urls):
 
     # Step 1: Try failback to NAT instance if allowed and current route is NAT Gateway
     if restore_enabled and are_any_routes_pointing_to_nat_gateway(route_tables):
-        logger.info("ENABLE_NAT_RESTORE=true and route is NAT Gateway. Trying to restore NAT instance...")
+        slogger.info("ENABLE_NAT_RESTORE=true and route is NAT Gateway. Trying to restore NAT instance...")
         attempt_nat_instance_restore()
         time.sleep(5)
 
@@ -311,17 +338,17 @@ def check_connection(check_urls):
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'alternat/1.0')
             urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT)
-            logger.debug("Successfully connected to %s", url)
+            slogger.debug("Successfully connected to %s", url)
             return True
         except urllib.error.HTTPError as error:
-            logger.warning("Response error from %s: %s, treating as success", url, error)
+            slogger.warning("Response error from %s: %s, treating as success", url, error)
             return True
         except urllib.error.URLError as error:
-            logger.error("error connecting to %s: %s", url, error)
+            slogger.error("error connecting to %s: %s", url, error)
         except socket.timeout as error:
-            logger.error("timeout error connecting to %s: %s", url, error)
+            slogger.error("timeout error connecting to %s: %s", url, error)
 
-    logger.warning("Failed connectivity tests! Replacing route")
+    slogger.warning("Failed connectivity tests! Replacing route")
 
     public_subnet_id = os.getenv("PUBLIC_SUBNET_ID")
     if not public_subnet_id:
@@ -333,7 +360,7 @@ def check_connection(check_urls):
 
     for rtb in route_tables:
         replace_route(rtb, nat_gateway_id)
-        logger.info("Route replacement succeeded")
+        slogger.info("Route replacement succeeded")
     return False
 
 def get_current_nat_instance_id(asg_name):
@@ -345,19 +372,19 @@ def get_current_nat_instance_id(asg_name):
             if instance['LifecycleState'] == 'InService':
                 return instance['InstanceId']
     except Exception as e:
-        logger.error(f"Failed to retrieve NAT instance ID from ASG {asg_name}: {e}")
+        slogger.error(f"Failed to retrieve NAT instance ID from ASG {asg_name}: {e}")
         return None
 
 def connectivity_test_handler(event, context):
     if not isinstance(event, dict):
-        logger.error(f"Unknown event: {event}")
+        slogger.error("Unknown event: %s", {event})
         return
 
     if event.get("source") != "aws.events":
-        logger.error(f"Unable to handle unknown event type: {json.dumps(event)}")
+        slogger.error("Unable to handle unknown event type: %s", json.dumps(event))
         raise UnknownEventTypeError
 
-    logger.debug("Starting NAT instance connectivity test")
+    slogger.debug("Starting NAT instance connectivity test")
 
     check_interval = int(os.getenv("CONNECTIVITY_CHECK_INTERVAL", DEFAULT_CONNECTIVITY_CHECK_INTERVAL))
     check_urls = "CHECK_URLS" in os.environ and os.getenv("CHECK_URLS").split(",") or DEFAULT_CHECK_URLS
@@ -419,10 +446,10 @@ def handler(event, _):
                 lifecycle_hook_name = message[LIFECYCLE_HOOK_NAME_KEY]
                 lifecycle_action_token = message[LIFECYCLE_ACTION_TOKEN_KEY]
             else:
-                logger.error("Failed to find lifecycle message to parse")
+                slogger.error("Failed to find lifecycle message to parse")
                 raise LifecycleMessageError
     except Exception as error:
-        logger.error("Error: %s", error)
+        slogger.error(error)
         raise error
 
     availability_zone, vpc_zone_identifier = get_az_and_vpc_zone_identifier(asg)
@@ -437,7 +464,7 @@ def handler(event, _):
 
     for rtb in route_tables:
         replace_route(rtb, nat_gateway_id)
-        logger.info("Route replacement succeeded")
+        slogger.info("Route replacement succeeded")
 
     complete_asg_lifecycle_action(
         asg, lifecycle_hook_name, lifecycle_action_token, "CONTINUE"
