@@ -1,18 +1,11 @@
-
 output "nat_instance_eips" {
-  description = "List of Elastic IP addresses used by the NAT instances. This will be empty if EIPs are provided in var.nat_instance_eip_ids."
-  value = (local.reuse_nat_instance_eips
-    ? []
-  : local.nat_instance_eips[*].public_ip)
+  description = "List of Elastic IP addresses created for the NAT instances."
+  value       = [for eip in local.created_nat_instance_eip_resources : eip.public_ip]
 }
 
 output "nat_gateway_eips" {
-  description = "List of Elastic IP addresses used by the standby NAT gateways."
-  value = [
-    for eip in local.nat_gateway_eips
-    : eip.public_ip
-    if var.create_nat_gateways
-  ]
+  description = "List of Elastic IP addresses created for the standby NAT gateways."
+  value       = [for eip in local.created_nat_gateway_eip_resources : eip.public_ip]
 }
 
 output "nat_instance_security_group_id" {

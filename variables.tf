@@ -164,13 +164,9 @@ variable "nat_instance_type" {
 }
 
 variable "nat_instance_eip_ids" {
-  description = <<-EOT
-  Allocation IDs of Elastic IPs to associate with the NAT instances. If not specified, EIPs will be created.
-
-  Note: if the number of EIPs does not match the number of subnets specified in `vpc_public_subnet_ids`, this variable will be ignored.
-  EOT
+  description = "Allocation IDs of Elastic IPs to associate with the NAT instances. If not specified, EIPs will be created."
   type        = list(string)
-  default     = []
+  default     = null
 }
 
 variable "fallback_ngw_eip_allocation_ids" {
@@ -314,6 +310,12 @@ variable "cloudwatch_interfaces" {
 
 variable "enable_launch_script_lifecycle_hook" {
   description = "Whether to enable the ASG lifecycle hook for the launch script."
+  type        = bool
+  default     = false
+}
+
+variable "allow_launch_before_terminating" {
+  description = "Whether to allow the ASG to launch new instances before terminating others."
   type        = bool
   default     = false
 }

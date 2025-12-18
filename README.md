@@ -267,7 +267,7 @@ If you provide explicit EIPs for all zones, no new aws_eip.nat_gateway_eips reso
 
 - Most of the time, except when the instance is actively being replaced, NAT traffic should be routed through the NAT instance and NOT through the NAT Gateway. You can monitor the logs for the text "Failed connectivity tests! Replacing route" to be alerted to NAT instance failures.
 
-- There are four Elastic IP addresses for the NAT instances and four for the NAT Gateways. Be sure to add all eight addresses to any external allow lists if necessary.
+- There is always (at least) one Elastic IP address per AZ for the NAT instances and one for each of the NAT Gateways. Be sure to add all addresses to any external allow lists if necessary.
 
 - If you plan on running this in a dual stack network (IPv4 and IPv6), you may notice that it takes ~10 minutes for an alternat node to start. In that case, you can use the `nat_instance_user_data_pre_install` variable to prefer IPv4 over IPv6 before running any user data.
 
