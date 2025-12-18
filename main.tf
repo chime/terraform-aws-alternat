@@ -35,7 +35,7 @@ locals {
     : {}
   )
 
-  desired_nat_instance_eip_count     = length(var.vpc_az_maps)
+  desired_nat_instance_eip_count     = length(var.vpc_az_maps) + (var.allow_launch_before_terminating ? 1 : 0)
   created_nat_instance_eip_count     = var.nat_instance_eip_ids == null ? local.desired_nat_instance_eip_count : 0
   created_nat_instance_eip_resources = var.prevent_destroy_eips ? aws_eip.protected_nat_instance_eips : aws_eip.nat_instance_eips
   nat_instance_eip_ids               = var.nat_instance_eip_ids == null ? local.created_nat_instance_eip_resources[*].id : var.nat_instance_eip_ids
