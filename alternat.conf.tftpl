@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 USERDATA_CONFIG_FILE="/etc/alternat.conf"
+echo vpc_cidrs_csv=${vpc_cidrs_csv} >> "$USERDATA_CONFIG_FILE"
 echo eip_allocation_ids_csv=${eip_allocation_ids_csv} >> "$USERDATA_CONFIG_FILE"
 echo route_table_ids_csv=${route_table_ids_csv} >> "$USERDATA_CONFIG_FILE"
 echo enable_ssm=${enable_ssm} >> "$USERDATA_CONFIG_FILE"

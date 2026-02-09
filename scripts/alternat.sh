@@ -20,6 +20,7 @@ load_config() {
    else
       panic "Config file $CONFIG_FILE not found"
    fi
+   validate_var "vpc_cidrs_csv" "$vpc_cidrs_csv"
    validate_var "eip_allocation_ids_csv" "$eip_allocation_ids_csv"
    validate_var "route_table_ids_csv" "$route_table_ids_csv"
    validate_var "enable_ssm" "$enable_ssm"
@@ -44,25 +45,15 @@ configure_nat() {
    local nic_name="$(ip route show | grep default | sed -n 's/.*dev \([^\ ]*\).*/\1/p')"
    echo "Found interface name ${nic_name}"
 
-   echo "Determining the MAC address on ${nic_name}"
-   local nic_mac="$(cat /sys/class/net/${nic_name}/address)" || panic "Unable to determine MAC address on ${nic_name}."
-   echo "Found MAC ${nic_mac} for ${nic_name}."
-
-   local vpc_cidr_uri="http://169.254.169.254/latest/meta-data/network/interfaces/macs/${nic_mac}/vpc-ipv4-cidr-blocks"
-   echo "Metadata location for vpc ipv4 ranges: $vpc_cidr_uri"
-
-   readarray -t vpc_cidrs <<< $(CURL_WITH_TOKEN "$vpc_cidr_uri")
-   if [ ${#vpc_cidrs[*]} -lt 1 ]; then
-      panic "Unable to obtain VPC CIDR range from metadata."
-   else
-      echo "Retrieved VPC CIDR range(s) ${vpc_cidrs[@]} from metadata."
-   fi
-
    echo "Enabling NAT..."
    # Read more about these settings here: https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt
 
    sysctl -q -w "net.ipv4.ip_forward"=1 "net.ipv4.conf.$nic_name.send_redirects"=0 "net.ipv4.ip_local_port_range"="1024 65535" ||
       panic
+
+   local vpc_cidrs
+   IFS=',' read -r -a vpc_cidrs <<< "${vpc_cidrs_csv}"
+   echo "Retrieved VPC CIDR range(s) ${vpc_cidrs[*]} from config"
 
    nft add table ip nat
    nft add chain ip nat postrouting { type nat hook postrouting priority 100 \; }
@@ -194,40 +185,45 @@ install_cloudwatch_agent() {
 ASG_LIFECYCLE_HOOK_NAME="NATInstanceLaunchScript"
 complete_asg_lifecycle_action() {
   if [[ -z "$1" ]]; then
-    echo "No lifecycle action result given"
+    echo "No ASG lifecycle action result given"
+    return
   fi
-
-  local auto_scaling_group_name
-  auto_scaling_group_name="$(ec2-metadata --quiet --tags | grep 'aws:autoscaling:groupName' | awk '{print $2}')"
-  if [[ -z "${auto_scaling_group_name}" ]]; then
-    echo "Could not detect auto scaling group name"
+  if [[ -z "${AUTO_SCALING_GROUP_NAME}" ]]; then
+    echo "Skipping ASG lifecycle action"
+    return
   fi
 
   local output status
   output="$(aws autoscaling complete-lifecycle-action \
     --lifecycle-hook-name "${ASG_LIFECYCLE_HOOK_NAME}" \
-    --auto-scaling-group-name "${auto_scaling_group_name}" \
+    --auto-scaling-group-name "${AUTO_SCALING_GROUP_NAME}" \
     --lifecycle-action-result "$1" \
     --instance-id "${INSTANCE_ID}" 2>&1)"
   status=$?
   if [[ $status -ne 0 ]]; then
     if grep -q "No active Lifecycle Action found" <<< "${output}"; then
       echo "Ignoring missing ASG lifecycle action"
+      return
     else
       echo "${output}"
       echo "Failed to complete ASG lifecycle action"
+      return
     fi
   fi
 
   echo "Completed ASG lifecycle action with result $1"
 }
 
-curl_cmd="curl --silent --fail"
-dnf_cmd="dnf --quiet --assumeyes"
+retrieve_ec2_metadata() {
+  INSTANCE_ID="$(ec2-metadata --quiet --instance-id)"
 
-echo "Requesting IMDSv2 token"
-token=$($curl_cmd -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 900")
-alias CURL_WITH_TOKEN="$curl_cmd -H \"X-aws-ec2-metadata-token: $token\""
+  AWS_DEFAULT_REGION="$(ec2-metadata --quiet --region)"
+  export AWS_DEFAULT_REGION
+
+  AUTO_SCALING_GROUP_NAME="$(ec2-metadata --quiet --tags | grep 'aws:autoscaling:groupName:' | awk '{print $2}')"
+}
+
+dnf_cmd="dnf --quiet --assumeyes"
 
 # Set CLI Output to text
 export AWS_DEFAULT_OUTPUT="text"
@@ -236,14 +232,7 @@ export AWS_DEFAULT_OUTPUT="text"
 # https://docs.aws.amazon.com/cli/latest/userguide/cli-usage-pagination.html#cli-usage-pagination-clientside
 export AWS_PAGER=""
 
-# Set Instance Identity URI
-II_URI="http://169.254.169.254/latest/dynamic/instance-identity/document"
-
-# Retrieve the instance ID
-INSTANCE_ID=$(CURL_WITH_TOKEN $II_URI | grep instanceId | awk -F\" '{print $4}')
-
-# Set region of NAT instance
-export AWS_DEFAULT_REGION=$(CURL_WITH_TOKEN $II_URI | grep region | awk -F\" '{print $4}')
+retrieve_ec2_metadata
 
 # alterNAT config file containing inputs needed for initialization
 CONFIG_FILE="/etc/alternat.conf"

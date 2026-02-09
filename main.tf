@@ -198,6 +198,7 @@ data "cloudinit_config" "config" {
   part {
     content_type = "text/x-shellscript"
     content = templatefile("${path.module}/alternat.conf.tftpl", {
+      vpc_cidrs_csv           = join(",", local.all_vpc_cidr_ranges),
       eip_allocation_ids_csv  = join(",", local.nat_instance_eip_ids),
       route_table_ids_csv     = join(",", each.value),
       enable_ssm              = var.enable_ssm,
