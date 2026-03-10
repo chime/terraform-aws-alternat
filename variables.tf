@@ -40,7 +40,7 @@ variable "create_nat_gateways" {
 variable "connectivity_test_check_urls" {
   description = "List of URLs to check with the connectivity tester function."
   type        = list(string)
-  default     = ["https://www.example.com", "https://www.google.com"]
+  default     = ["https://www.example.edu", "https://www.google.com"]
 }
 
 variable "connectivity_test_event_rule_name" {

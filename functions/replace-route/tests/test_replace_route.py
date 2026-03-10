@@ -240,7 +240,7 @@ def test_disable_ipv6():
     with mock.patch('socket.getaddrinfo') as mock_getaddrinfo:
         from app import disable_ipv6
         disable_ipv6()
-        socket.getaddrinfo('example.com', 80)
+        socket.getaddrinfo('example.edu', 80)
         mock_getaddrinfo.assert_called()
         call_args = mock_getaddrinfo.call_args.args
         assert len(call_args) == 3, f"With IPv6 disabled, expected 3 arguments to getaddrinfo, found {len(call_args)}"

@@ -25,7 +25,7 @@ LIFECYCLE_ACTION_TOKEN_KEY = "LifecycleActionToken"
 DEFAULT_CONNECTIVITY_CHECK_INTERVAL = "5"
 
 # Which URLs to check for connectivity
-DEFAULT_CHECK_URLS = ["https://www.example.com", "https://www.google.com"]
+DEFAULT_CHECK_URLS = ["https://www.example.edu", "https://www.google.com"]
 
 # The timeout for the connectivity checks.
 REQUEST_TIMEOUT = 5
