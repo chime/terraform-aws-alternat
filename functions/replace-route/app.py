@@ -134,10 +134,22 @@ def replace_route(route_table_id, target_id):
         "RouteTableId": route_table_id
     }
 
+    if are_any_routes_pointing_to(target_key, [route_table_id]) is True:
+        logger.info(f"Route table {route_table_id} already points to {target_key.replace('Id', '')}. Skipping replacement.")
+        return
+
     try:
         logger.info("Replacing existing route %s for route table %s", route_table_id, new_route_table)
         ec2_client.replace_route(**new_route_table)
     except botocore.exceptions.ClientError as error:
+        if error.response["Error"]["Code"] == "InvalidParameterValue":
+            try:
+                logger.info(f"Route table {route_table_id} does not have a default gateway. Creating one with {target_key.replace('Id', '')} {target_id}")
+                ec2_client.create_route(**new_route_table)
+                return
+            except botocore.exceptions.ClientError as error:
+                logger.error("Unable to create route")
+                raise error
         logger.error("Unable to replace route")
         raise error
 
@@ -210,16 +222,22 @@ def is_source_dest_check_enabled(instance_id):
         return None
 
 def are_any_routes_pointing_to_nat_gateway(route_table_ids):
+    return are_any_routes_pointing_to('NatGatewayId', route_table_ids)
+
+def are_any_routes_pointing_to_nat_instance(route_table_ids):
+    return are_any_routes_pointing_to('InstanceId', route_table_ids)
+
+def are_any_routes_pointing_to(target_type, route_table_ids):
     ec2 = boto3.client('ec2')
     try:
         response = ec2.describe_route_tables(RouteTableIds=route_table_ids)
         for rtb in response.get('RouteTables', []):
             for route in rtb.get('Routes', []):
-                if route.get('DestinationCidrBlock') == "0.0.0.0/0" and 'NatGatewayId' in route and route.get('State') == 'active':
+                if route.get('DestinationCidrBlock') == "0.0.0.0/0" and target_type in route and route.get('State') == 'active':
                     return True
         return False
     except Exception as e:
-        logger.error(f"Error checking NAT Gateway routes: {e}")
+        logger.error(f"Error checking {target_type.replace('Id', '')} routes: {e}")
         return False
 
 def attempt_nat_instance_restore():

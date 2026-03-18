@@ -201,7 +201,8 @@ data "cloudinit_config" "config" {
       eip_allocation_ids_csv  = join(",", local.nat_instance_eip_ids),
       route_table_ids_csv     = join(",", each.value),
       enable_ssm              = var.enable_ssm,
-      enable_cloudwatch_agent = var.enable_cloudwatch_agent
+      enable_cloudwatch_agent = var.enable_cloudwatch_agent,
+      enable_nat_restore      = var.enable_nat_restore
     })
   }
 
@@ -429,26 +430,32 @@ data "aws_iam_policy_document" "alternat_ec2_policy" {
     }
   }
 
-  statement {
-    sid    = "alterNATDescribeRoutePermissions"
-    effect = "Allow"
-    actions = [
-      "ec2:DescribeRouteTables"
-    ]
-    resources = ["*"]
+  dynamic "statement" {
+    for_each = var.enable_nat_restore ? [] : [1]
+    content {
+      sid    = "alterNATDescribeRoutePermissions"
+      effect = "Allow"
+      actions = [
+        "ec2:DescribeRouteTables"
+      ]
+      resources = ["*"]
+    }
   }
 
-  statement {
-    sid    = "alterNATModifyRoutePermissions"
-    effect = "Allow"
-    actions = [
-      "ec2:CreateRoute",
-      "ec2:ReplaceRoute"
-    ]
-    resources = [
-      for route_table in local.all_route_tables
-      : "arn:aws:ec2:${data.aws_region.current.id}:${data.aws_caller_identity.current.id}:route-table/${route_table}"
-    ]
+  dynamic "statement" {
+    for_each = var.enable_nat_restore ? [] : [1]
+    content {
+      sid    = "alterNATModifyRoutePermissions"
+      effect = "Allow"
+      actions = [
+        "ec2:CreateRoute",
+        "ec2:ReplaceRoute"
+      ]
+      resources = [
+        for route_table in local.all_route_tables
+        : "arn:aws:ec2:${data.aws_region.current.id}:${data.aws_caller_identity.current.id}:route-table/${route_table}"
+      ]
+    }
   }
 
   statement {

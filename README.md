@@ -99,6 +99,9 @@ Note that the route recovery feature does _not_ attempt to remediate any configu
 
 Also, under certain edge cases, this can potentially lead to flapping between NAT Gateway => NAT Instance => NAT Gateway => NAT Instance. Imagine a scenario where `curl` commands succeed from the NAT instance, and it appears to be configured correctly, so the NAT instance route is restored. But in actuality, a missing security group rule prevents traffic from reaching the NAT instance. During every connectivity check interval, the Lambda will update the route to use the instance since it appears healthy, but then the regular connectivity checks fail due to the missing security group rule, so the Lambda will immediately replace the route again pointing at NAT Gateway. This can happen until the security group rule is fixed.
 
+If a new environment is deployed with 'enable_nat_restore = true' the very first NAT Instances in the subnets will not create the default gateway rules but the first run of the Lambda function will.  
+As a result, **the subnets will lack Internet connectivity for a brief period shortly after creation**.
+
 ## Drawbacks
 
 No solution is without its downsides. To understand the primary drawback of this design, a brief discussion about how NAT works is warranted.

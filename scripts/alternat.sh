@@ -24,6 +24,7 @@ load_config() {
    validate_var "route_table_ids_csv" "$route_table_ids_csv"
    validate_var "enable_ssm" "$enable_ssm"
    validate_var "enable_cloudwatch_agent" "$enable_cloudwatch_agent"
+   validate_var "enable_nat_restore" "$enable_nat_restore"
 }
 
 validate_var() {
@@ -255,6 +256,12 @@ install_cloudwatch_agent
 configure_nat
 disable_source_dest_check
 associate_eip
-configure_route_table
+if [ "$enable_nat_restore" = "false" ]; then
+   # NAT restore is disabled. Configure the route table to point at the NAT instance.
+   configure_route_table
+else
+   # NAT restore is enabled. Route table configuration is handled by the Lambda function.
+   echo "NAT restore is enabled. Skipping route table configuration."
+fi
 complete_asg_lifecycle_action CONTINUE
 echo "Configuration completed successfully!"
