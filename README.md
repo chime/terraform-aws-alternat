@@ -99,6 +99,42 @@ Note that the route recovery feature does _not_ attempt to remediate any configu
 
 Also, under certain edge cases, this can potentially lead to flapping between NAT Gateway => NAT Instance => NAT Gateway => NAT Instance. Imagine a scenario where `curl` commands succeed from the NAT instance, and it appears to be configured correctly, so the NAT instance route is restored. But in actuality, a missing security group rule prevents traffic from reaching the NAT instance. During every connectivity check interval, the Lambda will update the route to use the instance since it appears healthy, but then the regular connectivity checks fail due to the missing security group rule, so the Lambda will immediately replace the route again pointing at NAT Gateway. This can happen until the security group rule is fixed.
 
+### Notifications
+
+When notifications are enabled (`enable_notifications=true`), alterNAT will send alerts whenever key events occur, such as:
+
+- Failover to NAT Gateway due to either health-check failure or instance refresh
+- Failback to NAT Instance
+
+Notification messages include information about the affected AWS account, region, Lambda function, and a description of the event.  
+This helps operations teams respond quickly to failures or unexpected conditions.
+
+Notifications are sent via [Amazon SNS](https://aws.amazon.com/sns/).
+
+#### Email notifications
+
+To enable email notifications:
+- Set `enable_notifications=true` in your variables.
+- Subscribe email addresses by setting `notification_email_addresses` to an array of addresses in your variables.  
+For example:
+```hcl
+    notification_email_addresses = ["email-1@example.com", "email-2@example.com"]
+```
+
+Example SNS notification message:
+
+```
+Subject: alterNAT: Failover to standby NAT Gateway
+
+Account ID: 123456789012
+Region: us-west-2
+Function Name: alternat-connectivity-tester-us-west-2a
+
+alterNAT is performing a failover to standby nat gateway for route table rtb-0123456789abcd
+```
+
+Notifications make it easier to monitor the status of your NAT instance fleet and react to failures or health check flapping events.
+
 ## Drawbacks
 
 No solution is without its downsides. To understand the primary drawback of this design, a brief discussion about how NAT works is warranted.

@@ -34,6 +34,18 @@ locals {
     }
     : {}
   )
+  sns_endpoint = (
+    var.enable_notifications
+    ? {
+      sns = {
+        service             = "sns"
+        private_dns_enabled = true
+        subnet_ids          = local.az_private_subnets
+        tags                = { Name = "sns-vpc-endpoint" }
+      }
+    }
+    : {}
+  )
 
   # Must provide exactly 1 EIP per AZ
   # var.nat_instance_eip_ids ignored if doesn't match AZ count
@@ -570,10 +582,24 @@ module "vpc_endpoints" {
   version            = "~> 3.14.0"
   vpc_id             = var.vpc_id
   security_group_ids = [aws_security_group.vpc_endpoint[0].id]
-  endpoints          = local.ec2_endpoint
+  endpoints          = merge(local.ec2_endpoint, local.sns_endpoint)
   tags               = var.tags
 }
 
 data "aws_default_tags" "current" {}
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
+
+resource "aws_sns_topic" "notification_topic" {
+  count             = var.enable_notifications ? 1 : 0
+  name_prefix       = var.notification_topic_prefix
+  kms_master_key_id = "alias/aws/sns"
+  tags              = var.tags
+}
+
+resource "aws_sns_topic_subscription" "notification_email_subscription" {
+  count     = var.enable_notifications ? length(var.notification_email_addresses) : 0
+  topic_arn = aws_sns_topic.notification_topic[0].arn
+  protocol  = "email"
+  endpoint  = var.notification_email_addresses[count.index]
+}

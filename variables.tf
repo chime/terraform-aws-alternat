@@ -317,3 +317,21 @@ variable "enable_launch_script_lifecycle_hook" {
   type        = bool
   default     = false
 }
+
+variable "enable_notifications" {
+  description = "Whether to enable notifications for failover events."
+  type        = bool
+  default     = false
+}
+
+variable "notification_topic_prefix" {
+  description = "The prefix to use for the name of the notification topic."
+  type        = string
+  default     = "alternat-notifications"
+}
+
+variable "notification_email_addresses" {
+  description = "List of email addresses to send notifications to."
+  type        = list(string)
+  default     = []
+}

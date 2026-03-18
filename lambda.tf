@@ -36,8 +36,12 @@ resource "aws_lambda_function" "alternat_autoscaling_hook" {
 
   environment {
     variables = merge(
+      {
+        NAT_GATEWAY_ID         = var.nat_gateway_id
+        NOTIFICATION_TOPIC_ARN = var.enable_notifications ? aws_sns_topic.notification_topic[0].arn : null
+        AWS_ACCOUNT_ID         = var.enable_notifications ? data.aws_caller_identity.current.account_id : null
+      },
       local.autoscaling_func_env_vars,
-      { NAT_GATEWAY_ID = var.nat_gateway_id },
       var.lambda_environment_variables,
     )
   }
@@ -104,6 +108,18 @@ data "aws_iam_policy_document" "alternat_lambda_permissions" {
   }
 }
 
+data "aws_iam_policy_document" "alternat_lambda_notification_permissions" {
+  count = var.enable_notifications ? 1 : 0
+  statement {
+    sid    = "alterNATNotificationPermissions"
+    effect = "Allow"
+    actions = [
+      "sns:Publish",
+    ]
+    resources = [aws_sns_topic.notification_topic[0].arn]
+  }
+}
+
 data "aws_iam_policy_document" "nat_lambda_policy" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -118,6 +134,13 @@ data "aws_iam_policy_document" "nat_lambda_policy" {
 resource "aws_iam_role_policy" "alternat_lambda_permissions" {
   name   = "alternat-lambda-permissions-policy"
   policy = data.aws_iam_policy_document.alternat_lambda_permissions.json
+  role   = aws_iam_role.nat_lambda_role.name
+}
+
+resource "aws_iam_role_policy" "alternat_lambda_notification_permissions" {
+  count  = var.enable_notifications ? 1 : 0
+  name   = "alternat-lambda-notification-permissions-policy"
+  policy = data.aws_iam_policy_document.alternat_lambda_notification_permissions[0].json
   role   = aws_iam_role.nat_lambda_role.name
 }
 
@@ -166,12 +189,14 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
   environment {
     variables = merge(
       {
-        ROUTE_TABLE_IDS_CSV = join(",", each.value.route_table_ids),
-        PUBLIC_SUBNET_ID    = each.value.public_subnet_id
-        CHECK_URLS          = join(",", var.connectivity_test_check_urls)
-        NAT_GATEWAY_ID      = var.nat_gateway_id
-        NAT_ASG_NAME        = aws_autoscaling_group.nat_instance[each.key].name
-        ENABLE_NAT_RESTORE  = var.enable_nat_restore
+        ROUTE_TABLE_IDS_CSV    = join(",", each.value.route_table_ids),
+        PUBLIC_SUBNET_ID       = each.value.public_subnet_id
+        CHECK_URLS             = join(",", var.connectivity_test_check_urls)
+        NAT_GATEWAY_ID         = var.nat_gateway_id
+        NAT_ASG_NAME           = aws_autoscaling_group.nat_instance[each.key].name
+        ENABLE_NAT_RESTORE     = var.enable_nat_restore
+        NOTIFICATION_TOPIC_ARN = var.enable_notifications ? aws_sns_topic.notification_topic[0].arn : null
+        AWS_ACCOUNT_ID         = var.enable_notifications ? data.aws_caller_identity.current.account_id : null
       },
       local.has_ipv6_env_var,
       var.lambda_environment_variables,
