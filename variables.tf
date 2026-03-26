@@ -317,3 +317,51 @@ variable "enable_launch_script_lifecycle_hook" {
   type        = bool
   default     = false
 }
+
+variable "enable_notifications" {
+  description = "Whether to enable notifications for failover events."
+  type        = bool
+  default     = false
+}
+
+variable "notification_topic_prefix" {
+  description = "The prefix to use for the name of the notification topic."
+  type        = string
+  default     = "alternat-notifications-"
+}
+
+variable "notification_email_addresses" {
+  description = "List of email addresses to send notifications to."
+  type        = list(string)
+  default     = []
+}
+
+variable "slack_webhook_url_secret" {
+  description = "The Slack webhook URL as a Secrets Manager secret."
+  type        = string
+  default     = ""
+}
+
+variable "slack_webhook_url_secret_key_prefix" {
+  description = "The prefix of the key of the Slack webhook URL in the Secrets Manager secret."
+  type        = string
+  default     = "alternat-slack-webhook-url-"
+}
+
+variable "notification_slack_function_name" {
+  description = "The name to use for the Slack notification Lambda function."
+  type        = string
+  default     = "alternat-notification-slack"
+}
+
+variable "notification_slack_lambda_zip_path" {
+  description = "The location where the generated zip file should be stored for the Slack notification Lambda function."
+  type        = string
+  default     = "/tmp/alternat-notification-slack.zip"
+}
+
+variable "notification_slack_lambda_function_role_name_prefix" {
+  description = "The prefix to use for the name of the Slack notification Lambda function role."
+  type        = string
+  default     = "alternat-slack-lambda-role-"
+}

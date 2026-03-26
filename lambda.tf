@@ -36,8 +36,12 @@ resource "aws_lambda_function" "alternat_autoscaling_hook" {
 
   environment {
     variables = merge(
+      {
+        NAT_GATEWAY_ID         = var.nat_gateway_id
+        NOTIFICATION_TOPIC_ARN = var.enable_notifications ? aws_sns_topic.notification_topic[0].arn : null
+        AWS_ACCOUNT_ID         = var.enable_notifications ? data.aws_caller_identity.current.account_id : null
+      },
       local.autoscaling_func_env_vars,
-      { NAT_GATEWAY_ID = var.nat_gateway_id },
       var.lambda_environment_variables,
     )
   }
@@ -104,6 +108,18 @@ data "aws_iam_policy_document" "alternat_lambda_permissions" {
   }
 }
 
+data "aws_iam_policy_document" "alternat_lambda_notification_permissions" {
+  count = var.enable_notifications ? 1 : 0
+  statement {
+    sid    = "alterNATNotificationPermissions"
+    effect = "Allow"
+    actions = [
+      "sns:Publish",
+    ]
+    resources = [aws_sns_topic.notification_topic[0].arn]
+  }
+}
+
 data "aws_iam_policy_document" "nat_lambda_policy" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -118,6 +134,13 @@ data "aws_iam_policy_document" "nat_lambda_policy" {
 resource "aws_iam_role_policy" "alternat_lambda_permissions" {
   name   = "alternat-lambda-permissions-policy"
   policy = data.aws_iam_policy_document.alternat_lambda_permissions.json
+  role   = aws_iam_role.nat_lambda_role.name
+}
+
+resource "aws_iam_role_policy" "alternat_lambda_notification_permissions" {
+  count  = var.enable_notifications ? 1 : 0
+  name   = "alternat-lambda-notification-permissions-policy"
+  policy = data.aws_iam_policy_document.alternat_lambda_notification_permissions[0].json
   role   = aws_iam_role.nat_lambda_role.name
 }
 
@@ -166,12 +189,14 @@ resource "aws_lambda_function" "alternat_connectivity_tester" {
   environment {
     variables = merge(
       {
-        ROUTE_TABLE_IDS_CSV = join(",", each.value.route_table_ids),
-        PUBLIC_SUBNET_ID    = each.value.public_subnet_id
-        CHECK_URLS          = join(",", var.connectivity_test_check_urls)
-        NAT_GATEWAY_ID      = var.nat_gateway_id
-        NAT_ASG_NAME        = aws_autoscaling_group.nat_instance[each.key].name
-        ENABLE_NAT_RESTORE  = var.enable_nat_restore
+        ROUTE_TABLE_IDS_CSV    = join(",", each.value.route_table_ids),
+        PUBLIC_SUBNET_ID       = each.value.public_subnet_id
+        CHECK_URLS             = join(",", var.connectivity_test_check_urls)
+        NAT_GATEWAY_ID         = var.nat_gateway_id
+        NAT_ASG_NAME           = aws_autoscaling_group.nat_instance[each.key].name
+        ENABLE_NAT_RESTORE     = var.enable_nat_restore
+        NOTIFICATION_TOPIC_ARN = var.enable_notifications ? aws_sns_topic.notification_topic[0].arn : null
+        AWS_ACCOUNT_ID         = var.enable_notifications ? data.aws_caller_identity.current.account_id : null
       },
       local.has_ipv6_env_var,
       var.lambda_environment_variables,
@@ -277,4 +302,107 @@ resource "aws_iam_role_policy" "lambda_ssm_send_command_policy" {
   name   = "AllowLambdaToSendSSMCommand"
   role   = aws_iam_role.nat_lambda_role.id
   policy = data.aws_iam_policy_document.lambda_ssm_send_command_document.json
+}
+
+resource "aws_secretsmanager_secret" "slack_webhook" {
+  count       = var.slack_webhook_url_secret != null && var.slack_webhook_url_secret != "" ? 1 : 0
+  name_prefix = var.slack_webhook_url_secret_key_prefix
+  description = "Slack webhook URL for alterNAT notifications"
+}
+
+resource "aws_secretsmanager_secret_version" "slack_webhook_value" {
+  count         = var.slack_webhook_url_secret != null && var.slack_webhook_url_secret != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.slack_webhook[0].id
+  secret_string = var.slack_webhook_url_secret
+}
+
+resource "archive_file" "notification_slack_archive" {
+  type        = "zip"
+  source_dir  = "${path.module}/functions/notification-slack"
+  excludes    = ["__pycache__"]
+  output_path = var.notification_slack_lambda_zip_path
+}
+
+resource "aws_lambda_function" "notification_slack" {
+  count         = var.enable_notifications && var.slack_webhook_url_secret != null && var.slack_webhook_url_secret != "" ? 1 : 0
+  function_name = var.notification_slack_function_name
+  architectures = var.lambda_function_architectures
+  package_type  = "Zip"
+  timeout       = 30
+  role          = aws_iam_role.notification_slack_lambda_role[0].arn
+
+  runtime          = local.lambda_runtime
+  handler          = "app.lambda_handler"
+  filename         = archive_file.notification_slack_archive.output_path
+  source_code_hash = archive_file.notification_slack_archive.output_base64sha256
+  environment {
+    variables = {
+      SLACK_WEBHOOK_URL_SECRET_NAME = aws_secretsmanager_secret.slack_webhook[0].name
+    }
+  }
+  tags = merge({
+    FunctionName = var.notification_slack_function_name,
+  }, var.tags)
+}
+
+resource "aws_lambda_permission" "sns_topic_to_notification_slack_lambda" {
+  count         = var.enable_notifications && var.slack_webhook_url_secret != null && var.slack_webhook_url_secret != "" ? 1 : 0
+  statement_id  = "AllowExecutionFromSNSToNotificationSlackLambda"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.notification_slack[0].function_name
+  principal     = "sns.amazonaws.com"
+  source_arn    = aws_sns_topic.notification_topic[0].arn
+}
+
+resource "aws_sns_topic_subscription" "notification_slack_subscription" {
+  count     = var.enable_notifications && var.slack_webhook_url_secret != null && var.slack_webhook_url_secret != "" ? 1 : 0
+  topic_arn = aws_sns_topic.notification_topic[0].arn
+  protocol  = "lambda"
+  endpoint  = aws_lambda_function.notification_slack[0].arn
+}
+
+resource "aws_iam_role" "notification_slack_lambda_role" {
+  count              = var.enable_notifications && var.slack_webhook_url_secret != null && var.slack_webhook_url_secret != "" ? 1 : 0
+  name_prefix        = var.notification_slack_lambda_function_role_name_prefix
+  assume_role_policy = data.aws_iam_policy_document.notification_slack_lambda_assume_role[0].json
+  tags               = var.tags
+}
+
+data "aws_iam_policy_document" "notification_slack_lambda_assume_role" {
+  count = var.enable_notifications && var.slack_webhook_url_secret != null && var.slack_webhook_url_secret != "" ? 1 : 0
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+    effect = "Allow"
+  }
+}
+
+data "aws_iam_policy_document" "notification_slack_secrets" {
+  count = var.enable_notifications && var.slack_webhook_url_secret != null && var.slack_webhook_url_secret != "" ? 1 : 0
+  statement {
+    sid    = "SecretsManagerRead"
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue"
+    ]
+    resources = [
+      aws_secretsmanager_secret.slack_webhook[0].arn
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "notification_slack_secrets" {
+  count  = var.enable_notifications && var.slack_webhook_url_secret != null && var.slack_webhook_url_secret != "" ? 1 : 0
+  name   = "secrets-manager-read"
+  role   = aws_iam_role.notification_slack_lambda_role[0].id
+  policy = data.aws_iam_policy_document.notification_slack_secrets[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "notification_slack_lambda_basic_execution_role_attachment" {
+  count      = var.enable_notifications && var.slack_webhook_url_secret != null && var.slack_webhook_url_secret != "" ? 1 : 0
+  role       = aws_iam_role.notification_slack_lambda_role[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }

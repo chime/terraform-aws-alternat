@@ -126,8 +126,12 @@ def get_nat_gateway_id(vpc_id, subnet_id):
 def replace_route(route_table_id, target_id):
     new_route_table = {}
     target_key = "NatGatewayId"
+    notification_subject = "Failover to standby NAT Gateway"
+    notification_message = notification_subject.lower()
     if target_id.startswith("i-"):
         target_key = "InstanceId"
+        notification_subject = "Failback to NAT Instance"
+        notification_message = notification_subject.lower()
     new_route_table = {
         "DestinationCidrBlock": "0.0.0.0/0",
         target_key: target_id,
@@ -136,6 +140,8 @@ def replace_route(route_table_id, target_id):
 
     try:
         logger.info("Replacing existing route %s for route table %s", route_table_id, new_route_table)
+        notification_message = f"alterNAT is performing a {notification_message} for route table {route_table_id}"
+        send_notification(notification_subject, notification_message)
         ec2_client.replace_route(**new_route_table)
     except botocore.exceptions.ClientError as error:
         logger.error("Unable to replace route")
@@ -381,6 +387,19 @@ def get_env_bool(var_name, default_value=False):
     true_values = ["t", "true", "y", "yes", "1"]
     return str(value).lower() in true_values
 
+# Sends a notification to the SNS topic.
+def send_notification(subject, message):
+    if topic_arn := os.getenv("NOTIFICATION_TOPIC_ARN"):
+        account_id = os.getenv('AWS_ACCOUNT_ID')
+        region = os.getenv('AWS_REGION')
+        function_name = os.getenv('AWS_LAMBDA_FUNCTION_NAME')
+        message = f"Account ID: {account_id}\nRegion: {region}\nFunction Name: {function_name}\n\n{message}"
+        sns_client = boto3.client("sns")
+        sns_client.publish(
+            TopicArn=topic_arn,
+            Subject=f"alterNAT: {subject}",
+            Message=message,
+        )
 
 def complete_asg_lifecycle_action(
     auto_scaling_group_name,
