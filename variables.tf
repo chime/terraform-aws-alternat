@@ -145,6 +145,12 @@ variable "nat_instance_name_prefix" {
   default     = "alternat-"
 }
 
+variable "nat_instance_launch_template_update_default_version" {
+  description = "When true, each launch template update sets the new version as the default (`update_default_version` on the NAT instance launch template)."
+  type        = bool
+  default     = true
+}
+
 variable "nat_instance_sg_name_prefix" {
   description = "Prefix for the NAT instance security group name."
   type        = string
