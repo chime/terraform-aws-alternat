@@ -235,7 +235,8 @@ data "cloudinit_config" "config" {
 resource "aws_launch_template" "nat_instance_template" {
   for_each = { for obj in var.vpc_az_maps : obj.az => obj.route_table_ids }
 
-  name_prefix = var.nat_instance_name_prefix
+  name_prefix            = var.nat_instance_name_prefix
+  update_default_version = var.nat_instance_launch_template_update_default_version
 
   image_id = local.nat_instance_image_id
 
