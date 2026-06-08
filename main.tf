@@ -20,6 +20,12 @@ locals {
     for obj in var.vpc_az_maps : obj.route_table_ids
   ])
 
+  # Per-AZ NAT instance type, falling back to the global var.nat_instance_type
+  # when an entry in vpc_az_maps does not set instance_type.
+  instance_type_by_az = {
+    for obj in var.vpc_az_maps : obj.az => coalesce(obj.instance_type, var.nat_instance_type)
+  }
+
   # One private subnet in each AZ to use for the VPC endpoints
   az_private_subnets = [for obj in var.vpc_az_maps : element(obj.private_subnet_ids, 0)]
   ec2_endpoint = (
@@ -278,7 +284,7 @@ resource "aws_launch_template" "nat_instance_template" {
     name = aws_iam_instance_profile.nat_instance.name
   }
 
-  instance_type = var.nat_instance_type
+  instance_type = local.instance_type_by_az[each.key]
 
   key_name = var.nat_instance_key_name
 

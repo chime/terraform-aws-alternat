@@ -197,6 +197,40 @@ module "alternat_instances" {
 }
 ```
 
+### Per-AZ instance type
+
+Each entry in `vpc_az_maps` accepts an optional `instance_type` that overrides the
+global `nat_instance_type` for that AZ. This is useful when egress traffic is skewed
+across AZs — for example a larger instance in a busy AZ and smaller, cheaper
+instances in lightly-used ones:
+
+```hcl
+vpc_az_maps = [
+  {
+    az                 = "us-east-1a"
+    instance_type      = "c6gn.large"   # busy AZ
+    route_table_ids    = ["rtb-aaa"]
+    public_subnet_id   = "subnet-aaa"
+    private_subnet_ids = ["subnet-aaap"]
+  },
+  {
+    az                 = "us-east-1b"
+    instance_type      = "t4g.small"    # lightly used
+    route_table_ids    = ["rtb-bbb"]
+    public_subnet_id   = "subnet-bbb"
+    private_subnet_ids = ["subnet-bbbp"]
+  },
+  {
+    az                 = "us-east-1c"   # instance_type omitted -> falls back to nat_instance_type
+    route_table_ids    = ["rtb-ccc"]
+    public_subnet_id   = "subnet-ccc"
+    private_subnet_ids = ["subnet-cccp"]
+  },
+]
+```
+
+When `instance_type` is omitted for an AZ, the module uses `var.nat_instance_type`, so existing configurations are unaffected.
+
 To use AWS Lambda runtime for Python, remove `alternat_image_*` inputs and set `lambda_package_type` to `Zip`, e.g.:
 
 ```hcl
