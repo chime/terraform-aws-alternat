@@ -116,9 +116,9 @@ resource "aws_autoscaling_group" "nat_instance" {
 
   dynamic "tag" {
     for_each = merge(
-      var.tags,
-      { Name = "${var.nat_instance_name_prefix}${each.key}" },
       data.aws_default_tags.current.tags,
+      { Name = "${var.nat_instance_name_prefix}${each.key}" },
+      var.tags
     )
 
     content {
