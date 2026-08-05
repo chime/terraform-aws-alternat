@@ -314,6 +314,14 @@ resource "aws_launch_template" "nat_instance_template" {
       alterNATInstance = "true",
     })
   }
+
+  tag_specifications {
+    resource_type = "network-interface"
+
+    tags = merge(var.tags, {
+      alterNATInstance = "true",
+    })
+  }
   user_data = data.cloudinit_config.config[each.key].rendered
 }
 
